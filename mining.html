@@ -10,7 +10,9 @@ P      A   A    Y      TT    OOOO   N   N
 Author: Michael Payton
 Project: Rumination
 Date: June 2025
-Notes: Currently a draft ready for overview and further development. 
+Notes: Currently a draft ready for overview and further development.
+Changes/Additions: unsure about the slider, must add questionnaires, must add consent form, likely 
+                   needs to load parameters from .csv file. 
 -->
 
 <head>
@@ -40,7 +42,7 @@ Notes: Currently a draft ready for overview and further development.
     <script>
         // ==== PARAMETERS ====
         const N_BLOCKS = 3;
-        const TRIALS_PER_BLOCK = 8;
+        const TRIALS_PER_BLOCK = 10;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // Scanner noise, probability of a correct scan
         const SCAN_COST = 1;
@@ -49,7 +51,7 @@ Notes: Currently a draft ready for overview and further development.
 
         // ==== STATE ====
         let currentMoney = STARTING_MONEY;
-        let trueState;    // gold is in either "surface" or "core"
+        let trueState;    // gold is in either at the "surface" or in the "core"
         let scanMsg;      // message given by scanner
         let lastDig = null;
         let lastCorrect = null;
@@ -78,7 +80,7 @@ Notes: Currently a draft ready for overview and further development.
           <p>What do you do?</p>
         `;
             },
-            choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
+            choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
             on_finish: function (data) {
                 const choice = parseInt(data.response);
                 if (choice === 0) {
@@ -89,8 +91,8 @@ Notes: Currently a draft ready for overview and further development.
                         ? trueState
                         : (trueState === 'surface' ? 'core' : 'surface');
                     scanMsg = (obs === 'surface')
-                        ? 'Scanner detects gold at surface'
-                        : 'Scanner detects gold in core';
+                        ? 'Scanners suggest there is gold at the surface'
+                        : 'Scanners suggest there is gold in the core';
                     // update counters
                     if (obs === 'surface') {
                         scanSurfaceCount++;
@@ -141,8 +143,8 @@ Notes: Currently a draft ready for overview and further development.
                 return `
       <div id="balance">Gold: <strong>${currentMoney}</strong></div>
       ${digData.correct
-                        ? `<p>You found the gold! (+${REWARD})</p>`
-                        : `<p>Nothing there! (−${PENALTY})</p>`
+                        ? `<p>You struck gold! (+${REWARD})</p>`
+                        : `<p>Better luck next time! (−${PENALTY})</p>`
                     }
     `;
             },
@@ -152,7 +154,7 @@ Notes: Currently a draft ready for overview and further development.
         // ---- Confidence slider after each dig ----
         const confidenceTrial = {
             type: 'html-slider-response',
-            stimulus: '<p>How confident are you that your dig choice was correct?</p>',
+            stimulus: '<p>How confident are you?</p>',
             labels: ['Positive gold is at surface', 'Positive gold is in core'],
             min: 0,
             max: 100,
@@ -165,7 +167,7 @@ Notes: Currently a draft ready for overview and further development.
             }
         };
 
-        // ---- Build timeline ----
+        // ---- Build the timeline ----
         const timeline = [];
 
         // Instructions
@@ -173,13 +175,18 @@ Notes: Currently a draft ready for overview and further development.
             type: 'html-button-response',
             stimulus: `
         <h2>Mining Task (Draft instructions)</h2>
+        <p>Welcome to the year 3000! We have sent mining drones all over the galaxy!</p>
+        <p>Your job is to help us collect rare earth minerals from asteroids.</p>
+        <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
+        <p>But we don't know whether gold is in the surface or in the core until we scan!</p>
+        <p>Unfortunately, our scanners are <strong>UNRELIABLE</strong></p>
         <p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
-        <p>Each asteroid has gold at the surface or in the core (hidden).</p>
+        <p>When you land on an asteroid, you have a options about what to do:</p>
         <ul>
-          <li>🔍 <strong>Scan</strong> (cost ${SCAN_COST}): noisy info about the location of the gold.</li>
+          <li>🔍 <strong>Scan</strong> (cost ${SCAN_COST}): you get noisy info about the location of the gold.</li>
           <li>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</li>
         </ul>
-        <p>Correct dig: You win +${REWARD} gold. Incorrect: You lose −${PENALTY} gold.</p>
+        <p>If you get a correct dig: You win +${REWARD} gold. Incorrect: You lose −${PENALTY} gold.</p>
         <p>Scan as many times as you like to gain information about the gold location. Only dig when you're ready.</p>
         <p>Press <strong>Start</strong> to begin.</p>
       `,
