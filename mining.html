@@ -167,6 +167,53 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
             }
         };
 
+        // ---- Instruction comprehension quiz ----
+            const instrQ1 = {
+                type: 'html-button-response',
+                stimulus: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gather information about where to dig?</p>`,
+                choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
+                data: { trial_part: 'instr', question: 'stay_put' }
+            };
+
+            const instrQ2 = {
+                type: 'html-button-response',
+                stimulus: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner noise. Suppose scanner noise is 70%. What does this mean?</p>`,
+                choices: [
+                    'I can trust that the scanner is giving me the right answer most of the time.',
+                    'The scanner makes a noise at 70% volume.',
+                    'The scanner is only giving the correct location 70% of the time.'
+                ],
+                data: { trial_part: 'instr', question: 'noise_def' }
+            };
+
+            const instrQ3 = {
+                type: 'html-button-response',
+                stimulus: `<p><strong>3.</strong> Suppose you got three "surface" readings from the scanner in a row and no "core" readings. Would this mean you should dig at the surface?</p>`,
+                choices: [
+                    'Yes, that is a strong indication of gold on the surface.',
+                    'No, the scanner is unreliable, so you should ignore it.',
+                    'Not necessarily, it depends on the scanner noise level, the cost of the scan and the payoff. I need to think about all of these things to make a decision.'
+                ],
+                data: { trial_part: 'instr', question: 'scan_tradeoff' }
+            };
+
+            const instrQuiz = {
+                timeline: [instrQ1, instrQ2, instrQ3],
+                loop_function: function (data) {
+                    // data.values() is an array of these three trials in order
+                    const resp = data.values();
+                    const q1 = resp[0].response === 0;  // scan
+                    const q2 = resp[1].response === 2;  // only correct 70% of the time
+                    const q3 = resp[2].response === 2;  // it depends
+                    const allCorrect = q1 && q2 && q3;
+                    if (!allCorrect) {
+                        alert('One or more answers were incorrect. Please review the instructions and try again.');
+                    }
+                    return !allCorrect;  // return true to repeat the quiz if any wrong
+                }
+            };
+
+
         // ---- Build the timeline ----
         const timeline = [];
 
@@ -191,6 +238,9 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
       `,
             choices: ['Start']
         });
+
+        // comprehension check – participant must get all three right before continuing
+            timeline.push(instrQuiz);
 
         // initialize first asteroid
         timeline.push({ type: 'call-function', func: resetAsteroid });
