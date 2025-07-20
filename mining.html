@@ -73,11 +73,14 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
             type: 'html-button-response',
             stimulus: function () {
                 return `
-          <div id="balance">Gold: <strong>${currentMoney}</strong></div>
-          <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
-          <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
-          <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
-          <p>What do you do?</p>
+         <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
+         <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
+         <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
+         <p>Scan accuracy: <strong>${Math.round(NOISE * 100)}%</strong></p>
+         <p>Scan cost: <strong>${SCAN_COST}</strong> gold</p>
+         <p>Gold for correct dig: <strong>${REWARD}</strong> gold</p>
+         <p>Gold lost for incorrect dig: <strong>${PENALTY}</strong> gold</p>
+         <p>Which action will you take?</p>
         `;
             },
             choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
