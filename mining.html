@@ -11,7 +11,7 @@ Author: Michael Payton
 Project: Rumination
 Date: June 2025
 Notes: Currently a draft ready for overview and further development.
-Changes/Additions: unsure about the slider, must add questionnaires, must add consent form, likely 
+Changes/Additions: must add questionnaires, must add consent form, likely 
                    needs to load parameters from .csv file. 
 -->
 
@@ -72,8 +72,8 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
     <div id="jspsych-target"></div>
     <script>
         // ==== PARAMETERS ====
-        const N_BLOCKS = 3;
-        const TRIALS_PER_BLOCK = 10;
+        const N_BLOCKS = 2;
+        const TRIALS_PER_BLOCK = 1;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // Scanner noise, probability of a correct scan
         const SCAN_COST = 1;
@@ -90,6 +90,10 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
         let scanSurfaceCount = 0;
         let scanCount = 0;      // total scans this trial
 
+        // track where we are in blocks/trials
+            let globalBlockIndex = 0;
+            let globalTrialIndex = 0;
+
         // new asteroid, reset observation and counters
         function resetAsteroid() {
             trueState = (Math.random() < 0.5) ? 'surface' : 'core';
@@ -103,15 +107,21 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
         const scanOrDig = {
             type: 'html-button-response',
             stimulus: function () {
+                const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
+                const trialsDone = globalTrialIndex + 1;
+                const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
                 return `
-         <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
-         <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
-         <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
-         <p>Scan accuracy: <strong>${Math.round(NOISE * 100)}%</strong></p>
-         <p>Scan cost: <strong>${SCAN_COST}</strong> gold</p>
-         <p>Gold for correct dig: <strong>${REWARD}</strong> gold</p>
-         <p>Gold lost for incorrect dig: <strong>${PENALTY}</strong> gold</p>
-         <p>Which action will you take?</p>
+        <div id="balance">Gold: <strong>${currentMoney}</strong></div>
+      <div>Block ${globalBlockIndex + 1} of ${N_BLOCKS} (Blocks left: ${blocksLeft})</div>
+      <div>Trial ${trialsDone} of ${TRIALS_PER_BLOCK} (Trials left: ${trialsLeft})</div>
+      <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
+      <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
+      <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
+      <p>Scan accuracy: <strong>${Math.round(NOISE * 100)}%</strong>%</p>
+      <p>Scan cost: <strong>${SCAN_COST}</strong> gold</p>
+      <p>Gold for correct dig: <strong>${REWARD}</strong> gold</p>
+      <p>Gold lost for incorrect dig: <strong>${PENALTY}</strong> gold</p>
+      <p>Which action will you take?</p>
         `;
             },
             choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
@@ -323,6 +333,12 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
 
             // trials
             for (let t = 0; t < TRIALS_PER_BLOCK; t++) {
+                // record which trial (within the current block) we're on
+                timeline.push({
+                    type: 'call-function',
+                    func: () => { globalTrialIndex = t; }
+                });
+
                 timeline.push(scanOrDigLoop);
                 timeline.push(confidenceTrial);
                 timeline.push(digFeedback);
@@ -330,22 +346,30 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
             }
         }
 
-        // final screen
+       // final screen
         timeline.push({
             type: 'html-button-response',
-            stimulus: `
-        <h2>All done!</h2>
-        <p>Your final balance: <strong>${currentMoney}</strong> gold.</p>
-        <p>Thank you for playing.</p>
-      `,
-            choices: ['Finish']
+            stimulus: function () {
+                return `
+      <h2>All done!</h2>
+      <p>Your final balance: <strong>${currentMoney}</strong> gold.</p>
+      <p>Thank you for playing.</p>
+    `;
+            },
+            choices: ['Finish and download'] // 
         });
 
+
         // launch
-        jsPsych.init({
-            timeline: timeline,
-            display_element: document.getElementById('jspsych-target')
-        });
+            jsPsych.init({
+                timeline: timeline,
+                display_element: document.getElementById('jspsych-target'),
+                on_finish: function () {
+                    // this will prompt the browser to download your data as "mining_task_data.csv"
+                    jsPsych.data.get().localSave('csv', 'mining_task_data.csv');
+                }
+            });
+
 
     </script>
 </body>
