@@ -104,64 +104,71 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         }
 
         // ---- Trial: scan vs dig ----
-        const scanOrDig = {
-            type: 'html-button-response',
-            stimulus: function () {
-                const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
-                const trialsDone = globalTrialIndex + 1;
-                const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
-                return `
-        <div id="balance">Gold: <strong>${currentMoney}</strong></div>
-      <div>Block ${globalBlockIndex + 1} of ${N_BLOCKS} (Blocks left: ${blocksLeft})</div>
-      <div>Trial ${trialsDone} of ${TRIALS_PER_BLOCK} (Trials left: ${trialsLeft})</div>
-      <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
-      <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
-      <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
-      <p>Scan accuracy: <strong>${Math.round(NOISE * 100)}%</strong>%</p>
-      <p>Scan cost: <strong>${SCAN_COST}</strong> gold</p>
-      <p>Gold for correct dig: <strong>${REWARD}</strong> gold</p>
-      <p>Gold lost for incorrect dig: <strong>${PENALTY}</strong> gold</p>
-      <p>Which action will you take?</p>
+            const scanOrDig = {
+                type: 'html-button-response',
+                stimulus: function () {
+                    const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
+                    const trialsDone = globalTrialIndex + 1;
+                    const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
+                    return `
+  <div id="balance">Gold: <strong>${currentMoney}</strong></div>
+  <div>Block ${globalBlockIndex + 1} of ${N_BLOCKS} (Blocks left: ${blocksLeft})</div>
+  <div>Trial ${trialsDone} of ${TRIALS_PER_BLOCK} (Trials left: ${trialsLeft})</div>
+  <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
+  <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
+  <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
+  <p>Scan accuracy: <strong>${Math.round(NOISE * 100)}%</strong>%</p>
+  <p>Scan cost: <strong>${SCAN_COST}</strong> gold</p>
+  <p>Gold for correct dig: <strong>${REWARD}</strong> gold</p>
+  <p>Gold lost for incorrect dig: <strong>${PENALTY}</strong> gold</p>
+  <p>Which action will you take?</p>
         `;
-            },
-            choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
-            on_finish: function (data) {
-                const choice = parseInt(data.response);
-                if (choice === 0) {
-                    // -------- SCAN --------
-                    currentMoney -= SCAN_COST;
-                    // noisy observation
-                    const obs = (Math.random() < NOISE)
-                        ? trueState
-                        : (trueState === 'surface' ? 'core' : 'surface');
-                    scanMsg = (obs === 'surface')
-                        ? 'Scanners suggest there is gold at the surface'
-                        : 'Scanners suggest there is gold in the core';
-                    // update counters
-                    if (obs === 'surface') {
-                        scanSurfaceCount++;
+                },
+                choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
+                on_finish: function (data) {
+                    const choice = parseInt(data.response);
+                    if (choice === 0) {
+                        // -------- SCAN --------
+                        data.scan = true;
+                        currentMoney -= SCAN_COST;
+                        // noisy observation
+                        const obs = (Math.random() < NOISE)
+                            ? trueState
+                            : (trueState === 'surface' ? 'core' : 'surface');
+                        scanMsg = (obs === 'surface')
+                            ? 'Scanners suggest there is gold at the surface'
+                            : 'Scanners suggest there is gold in the core';
+                        // update counters
+                        if (obs === 'surface') {
+                            scanSurfaceCount++;
+                        } else {
+                            scanCoreCount++;
+                        }
+                        scanCount++;
                     } else {
-                        scanCoreCount++;
+                        // -------- DIG --------
+                        data.scan = false;
+                        const dug = (choice === 1) ? 'core' : 'surface';
+                        const correct = (dug === trueState);
+                        // imperatively update balance
+                        if (correct) {
+                            currentMoney += REWARD;
+                        } else {
+                            currentMoney -= PENALTY;
+                        }
+                        data.correct = correct;
+                        data.delta = correct ? REWARD : -PENALTY;
+                        data.dug = dug;
+                        data.scanCount = scanCount;  // total scans this trial
                     }
-                    scanCount++;
-                } else {
-                    // -------- DIG --------
-                    const dug = (choice === 1) ? 'core' : 'surface';
-                    const correct = (dug === trueState);
-                    // imperatively update balance
-                    if (correct) {
-                        currentMoney += REWARD;
-                    } else {
-                        currentMoney -= PENALTY;
-                    }
-                    data.correct = correct;
-                    data.delta = correct ? REWARD : -PENALTY;
-                    data.dug = dug;
-                    data.scanCount = scanCount;  // record total scans this trial
-                    scanMsg = null;
+                    // record scan counters every time
+                    data.scanCount = scanCount;
+                    data.scanCoreCount = scanCoreCount;
+                    data.scanSurfaceCount = scanSurfaceCount;
+                    // note: reaction time (rt) is automatically logged by html-button-response
                 }
-            }
-        };
+            };
+
 
         // loop until they choose to dig, allows infinite scanning
         const scanOrDigLoop = {
@@ -351,7 +358,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             type: 'html-button-response',
             stimulus: function () {
                 return `
-      <h2>All done!</h2>
+      <h2>Congratulations on a successful mining adventure!</h2>
       <p>Your final balance: <strong>${currentMoney}</strong> gold.</p>
       <p>Thank you for playing.</p>
     `;
@@ -359,16 +366,15 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             choices: ['Finish and download'] // 
         });
 
-
-        // launch
-            jsPsych.init({
-                timeline: timeline,
-                display_element: document.getElementById('jspsych-target'),
-                on_finish: function () {
-                    // this will prompt the browser to download your data as "mining_task_data.csv"
-                    jsPsych.data.get().localSave('csv', 'mining_task_data.csv');
-                }
-            });
+            // launch
+                jsPsych.init({
+                    timeline: timeline,
+                    display_element: document.getElementById('jspsych-target'),
+                    on_finish: function () {
+                        // this will download your data as CSV when they click “Finish and download”
+                        jsPsych.data.get().localSave('csv', 'mining_task_data.csv');
+                    }
+                });
 
 
     </script>
