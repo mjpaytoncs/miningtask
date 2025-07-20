@@ -34,6 +34,37 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
             padding: 10px 20px;
             margin: 0 5px;
         }
+
+        /* 1) Widen the whole slider container and center it */
+  .jspsych-html-slider-response-container {
+    width: 600px !important;    /* change 600px to whatever you like */
+    margin: 0 auto;
+  }
+
+  /* 2) Make the <input type="range"> fill that container */
+  .jspsych-html-slider-response-container .jspsych-slider {
+    width: 100% !important;
+  }
+
+  /* 3) Lay out all of your labels in a row */
+  .jspsych-html-slider-response-text {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  /* 4) Box each label so they don’t bleed together */
+  .jspsych-html-slider-response-text span {
+    flex: 1;
+    border: 1px solid #ccc;
+    padding: 6px;
+    margin: 0 4px;
+    text-align: center;
+    background: #f9f9f9;
+    border-radius: 4px;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
     </style>
 </head>
 
@@ -245,7 +276,7 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
             type: 'html-button-response',
             stimulus: `
         <h2>Mining Task (Draft instructions)</h2>
-        <p>Welcome to the year 3000! We have sent mining drones all over the galaxy!</p>
+        <p>Welcome to the year 3000 C.E.! We have sent mining drones all over the galaxy!</p>
         <p>Your job is to help us collect rare earth minerals from asteroids.</p>
         <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
         <p>But we don't know whether gold is in the surface or in the core until we scan!</p>
