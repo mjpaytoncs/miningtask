@@ -156,19 +156,39 @@ Changes/Additions: unsure about the slider, must add questionnaires, must add co
 
         // ---- Confidence slider after each dig ----
         const confidenceTrial = {
-            type: 'html-slider-response',
-            stimulus: '<p>How confident are you?</p>',
-            labels: ['Positive gold is at surface', 'Positive gold is in core'],
-            min: 0,
-            max: 100,
-            start: 50,
-            step: 1,
-            require_movement: true,
-            data: { trial_part: 'confidence' },
-            on_finish: function (data) {
-                data.confidence = data.response;
-            }
-        };
+                type: 'html-slider-response',
+                // Fill in stimulus & labels in on_start
+                stimulus: '',
+                labels: [],
+                min: 0,
+                max: 100,
+                start: 50,
+                step: 1,
+                require_movement: true,
+                data: { trial_part: 'confidence' },
+
+                on_start: function (trial) {
+                    // grab all data, reverse, and find the most recent dig trial
+                    const all = jsPsych.data.get().values();
+                    const digData = all.slice().reverse().find(t => t.dug !== undefined);
+                    const choice = digData.dug; // either "core" or "surface"
+
+                    // set the question text
+                    trial.stimulus = `<p>How confident are you that the gold is at <strong>${choice}</strong>?</p>`;
+
+                    // set the endpoint and midpoint labels
+                    trial.labels = [
+                        `Not confident that gold is at ${choice}`,
+                        `Moderately confident that gold is at ${choice}`, // may need workshoping
+                        `Very confident that gold is at ${choice}`
+                    ];
+                },
+
+                on_finish: function (data) {
+                    data.confidence = data.response;
+                }
+            };
+
 
         // ---- Instruction comprehension quiz ----
             const instrQ1 = {
