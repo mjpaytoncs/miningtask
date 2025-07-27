@@ -37,7 +37,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
         /* 1) Widen the whole slider container and center it */
   .jspsych-html-slider-response-container {
-    width: 600px !important;    /* change 600px to whatever you like */
+    width: 600px !important;    /* 600px is a good starting place, right? */
     margin: 0 auto;
   }
 
@@ -46,7 +46,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
     width: 100% !important;
   }
 
-  /* 3) Lay out all of your labels in a row */
+  /* 3) Lay out all the labels in a row */
   .jspsych-html-slider-response-text {
     display: flex;
     justify-content: space-between;
@@ -71,16 +71,16 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 <body>
     <div id="jspsych-target"></div>
     <script>
-        // ==== PARAMETERS ====
-        const N_BLOCKS = 2;
-        const TRIALS_PER_BLOCK = 1;
+        // Parameters
+        const N_BLOCKS = 5;
+        const TRIALS_PER_BLOCK = 10;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // Scanner noise, probability of a correct scan
         const SCAN_COST = 1;
         const REWARD = 50;   // reward if correct
         const PENALTY = 100; // penalty if incorrect
 
-        // ==== STATE ====
+        // Starting Counters
         let currentMoney = STARTING_MONEY;
         let trueState;    // gold is in either at the "surface" or in the "core"
         let scanMsg;      // message given by scanner
@@ -103,7 +103,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             scanCount = 0;
         }
 
-        // ---- Trial: scan vs dig ----
+        // Trial: scan vs dig
             const scanOrDig = {
                 type: 'html-button-response',
                 stimulus: function () {
@@ -179,7 +179,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             }
         };
 
-        // ---- Feedback after each dig ----
+        // Feedback after each dig
         const digFeedback = {
             type: 'html-button-response',
             choices: [],    // no buttons
@@ -202,7 +202,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             trial_duration: 1500
         };
 
-        // ---- Confidence slider after each dig ----
+        // Confidence slider after each dig
         const confidenceTrial = {
                 type: 'html-slider-response',
                 // Fill in stimulus & labels in on_start
@@ -238,7 +238,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             };
 
 
-        // ---- Instruction comprehension quiz ----
+        // Comprehension Check
             const instrQ1 = {
                 type: 'html-button-response',
                 stimulus: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gather information about where to dig?</p>`,
@@ -280,12 +280,12 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                     if (!allCorrect) {
                         alert('One or more answers were incorrect. Please review the instructions and try again.');
                     }
-                    return !allCorrect;  // return true to repeat the quiz if any wrong
+                    return !allCorrect;  // return true to repeat the quiz if any questions were wrong
                 }
             };
 
 
-        // ---- Build the timeline ----
+        // Build the experiment timeline 
         const timeline = [];
 
         // Instructions
@@ -318,7 +318,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
         // blocks
         for (let b = 0; b < N_BLOCKS; b++) {
-            // block reminder
+            // block reminder parameter reminder text
             timeline.push({
                 type: 'html-button-response',
                 stimulus: function () {
@@ -358,20 +358,20 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             type: 'html-button-response',
             stimulus: function () {
                 return `
-      <h2>Congratulations on a successful mining adventure!</h2>
+      <h2>Congratulations on a successful space mining adventure!</h2>
       <p>Your final balance: <strong>${currentMoney}</strong> gold.</p>
-      <p>Thank you for playing.</p>
+      <p>Thank you for participating in our experiments.</p>
     `;
             },
             choices: ['Finish and download'] // 
         });
 
-            // launch
+            // launch the experiment
                 jsPsych.init({
                     timeline: timeline,
                     display_element: document.getElementById('jspsych-target'),
                     on_finish: function () {
-                        // this will download your data as CSV when they click “Finish and download”
+                        // this will download data as CSV when participant clicks “Finish and download”
                         jsPsych.data.get().localSave('csv', 'mining_task_data.csv');
                     }
                 });
