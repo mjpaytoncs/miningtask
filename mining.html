@@ -293,18 +293,26 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             type: 'html-button-response',
             stimulus: `
         <h2>Mining Task (Draft instructions)</h2>
-        <p>Welcome to the year 3000 C.E.! We have sent mining drones all over the galaxy!</p>
-        <p>Your job is to help us collect rare earth minerals from asteroids.</p>
+        <p>In this experiment, your will pretend to work for an asteroid mining company in the year 3000.</p>
+        <p>The company has sent mining drones all over the galaxy. Your job is to help us collect rare minerals from asteroids.</p>
         <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
-        <p>But we don't know whether gold is in the surface or in the core until we scan!</p>
-        <p>Unfortunately, our scanners are <strong>UNRELIABLE</strong></p>
+        <p>But we don't know whether gold is near the surface or in the core.</p>
+        <p></p>
+        <p>Your task is to decide whether to dig near the surface or into the core.</p>
+        <p>If you dig where the gold is located, then you will get a reward as compensation from the company. However, the asteroids are fragile.</p> 
+        <p>So, once you dig, it will break apart and any remaining gold becomes unsalvageable.</p>  
+        <p>If you dig in the incorrect location, you cannot get the gold and the company will penalize you by lowering your compensation.</p>  
+        <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are UNRELIABLE.</p> 
+        <p>You can scan each asteroid as many times as you want. But, scanning is costly and so, the company charges you given amount per scan.</p>
+        <p></p>
         <p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
         <p>When you land on an asteroid, you have a options about what to do:</p>
         <p>🔍 <strong>Scan</strong> (cost ${SCAN_COST}): you get noisy info about the location of the gold.</p>
         <p>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</p>
-        
-        <p>If you get a correct dig: You win +${REWARD} gold. Incorrect: You lose −${PENALTY} gold.</p>
-        <p>Scan as many times as you like to gain information about the gold location. Only dig when you're ready.</p>
+        <p>If you select the correct location to dig: You win +${REWARD} gold.</p> 
+        <p>If you select the incorrect location to dig You lose −${PENALTY} gold.</p>
+        <p>Scan as many times as you like to gain information about the gold location.</p> 
+        <p>You only get to pick a dig location once for each asteroid. So please make sure you're ready to dig in which ever location before doing so.</p>
         <p>Press <strong>Start</strong> to begin.</p>
       `,
             choices: ['Start']
@@ -323,7 +331,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                 type: 'html-button-response',
                 stimulus: function () {
                     return `
-            <h3>Block ${b + 1} of ${N_BLOCKS}</h3>
+            <h3>Asteroid Field ${b + 1} of ${N_BLOCKS}</h3>
             <p>Current parameters:</p>
             <ul>
               <li>Scanner accuracy: ${Math.round(NOISE * 100)}%</li>
