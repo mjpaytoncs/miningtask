@@ -112,9 +112,9 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                     const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
                     return `
   <div id="balance">Gold: <strong>${currentMoney}</strong></div>
-  <div>Block ${globalBlockIndex + 1} of ${N_BLOCKS} (Blocks left: ${blocksLeft})</div>
-  <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Trials left: ${trialsLeft})</div>
-  <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
+  <div>Asteriod Field ${globalBlockIndex + 1} of ${N_BLOCKS} (Asteroid Fields left: ${blocksLeft})</div>
+  <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Asteriods left: ${trialsLeft})</div>
+  <p>Current scanner observation: <strong>${scanMsg || 'None'}</strong></p>
   <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
   <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
   <p>Scan accuracy: <strong>${Math.round(NOISE * 100)}%</strong></p>
@@ -326,8 +326,15 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         // initialize first asteroid
         timeline.push({ type: 'call-function', func: resetAsteroid });
 
-        // blocks
+       // blocks
         for (let b = 0; b < N_BLOCKS; b++) {
+
+            // set current block index so the main trial screen shows the right block number
+            timeline.push({
+                type: 'call-function',
+                func: () => { globalBlockIndex = b; }
+            });
+
             // block reminder parameter reminder text
             timeline.push({
                 type: 'html-button-response',
