@@ -239,50 +239,109 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
 
         // Comprehension Check
-            const instrQ1 = {
-                type: 'html-button-response',
-                stimulus: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gather information about where to dig?</p>`,
-                choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
-                data: { trial_part: 'instr', question: 'stay_put' }
+            // running tallies saved across attempts and will be saved in csv output
+            const quizStats = {
+                stay_put: { correct: 0, incorrect: 0 },
+                noise_def: { correct: 0, incorrect: 0 },
+                scan_tradeoff: { correct: 0, incorrect: 0 }
             };
 
-            const instrQ2 = {
-                type: 'html-button-response',
-                stimulus: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner noise. Suppose scanner noise is 70%. What does this mean?</p>`,
+            // helper function: creates a single-question loop with feedback and logging for csv
+            function makeQuizQuestion({ qid, promptHTML, choices, correctIndex, feedbackHTML }) {
+                let attempts = 0; // attempts for this question (resets if page reloads)
+
+                const qTrial = {
+                    type: 'html-button-response',
+                    stimulus: promptHTML,
+                    choices: choices,
+                    data: { trial_part: 'instr', qid: qid },
+                    on_finish: function (d) {
+                        attempts += 1;
+                        d.attempt = attempts;
+                        d.correct_index = correctIndex;
+                        d.is_correct = (d.response === correctIndex);
+
+                        // update totals
+                        if (d.is_correct) quizStats[qid].correct += 1;
+                        else quizStats[qid].incorrect += 1;
+
+                        // copy running totals into this row so they get added to the CSV
+                        d.correct_total = quizStats[qid].correct;
+                        d.incorrect_total = quizStats[qid].incorrect;
+                    }
+                };
+
+                const feedbackTrial = {
+                    type: 'html-button-response',
+                    choices: function () {
+                        const last = jsPsych.data.get().last(1).values()[0];
+                        return last.is_correct ? [] : ['Try again'];
+                    },
+                    stimulus: function () {
+                        const last = jsPsych.data.get().last(1).values()[0]; // the question we just answered
+                        if (last.is_correct) {
+                            return `<p>✅ Correct.</p>`;
+                        } else {
+                            return `
+                        <p>❌ Incorrect.</p>
+                        <div style="margin-top:8px">${feedbackHTML}</div>
+                        <p style="margin-top:8px">Please select the correct answer to continue.</p>
+                        `;
+                        }
+                    },
+                    trial_duration: function () {
+                        const last = jsPsych.data.get().last(1).values()[0];
+                        return last.is_correct ? 900 : null; // auto-advance if correct; else wait for button
+                    },
+                    data: { trial_part: 'instr_feedback', qid: qid }
+                };
+
+                // repeat forever until the questions get answered correctly
+                return {
+                    timeline: [qTrial, feedbackTrial],
+                    loop_function: function (loopData) {
+                        // the first item in this mini-timeline is the question trial we just ran
+                        const q = loopData.values().find(t => t.trial_part === 'instr' && t.qid === qid);
+                        return !q.is_correct; // true → repeat; false → move on
+                    }
+                };
+            }
+
+            // Q1: which action keeps you on the same asteroid?
+            const quizQ1 = makeQuizQuestion({
+                qid: 'stay_put',
+                promptHTML: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gather information about where to dig?</p>`,
+                choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
+                correctIndex: 0,
+                feedbackHTML: `<p>Incorrect. Scanning both gives you information about the asteroid and does <em>not</em> end the trial. It provides some noisy information at a cost set by the company. You can <em>scan</em> repeatedly on the same asteroid.</p>`
+            });
+
+            // Q2: meaning of “scanner noise 70%”
+            const quizQ2 = makeQuizQuestion({
+                qid: 'noise_def',
+                promptHTML: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner noise. Suppose scanner noise is 70%. What does this mean?</p>`,
                 choices: [
                     'I can trust that the scanner is giving me the right answer most of the time.',
                     'The scanner makes a noise at 70% volume.',
                     'The scanner is only giving the correct location 70% of the time.'
                 ],
-                data: { trial_part: 'instr', question: 'noise_def' }
-            };
+                correctIndex: 2,
+                feedbackHTML: `<p>Incorrect. The “70%” means the scanner’s message matches the true gold location 70% of the time.</p>`
+            });
 
-            const instrQ3 = {
-                type: 'html-button-response',
-                stimulus: `<p><strong>3.</strong> Suppose you got three "surface" readings from the scanner in a row and no "core" readings. Would this mean you should dig at the surface?</p>`,
+            // Q3: scanning trade-off
+            const quizQ3 = makeQuizQuestion({
+                qid: 'scan_tradeoff',
+                promptHTML: `<p><strong>3.</strong> Suppose you got three "surface" readings in a row and no "core" readings. Should you dig at the surface?</p>`,
                 choices: [
                     'Yes, that is a strong indication of gold on the surface.',
                     'No, the scanner is unreliable, so you should ignore it.',
-                    'Maybe. It depends on the scanner reliability, the cost of a scan, and the company reward and punishment for gold ore'
+                    'Maybe. It depends on the scanner reliability, the cost of a scan, and the company reward and punishment.'
                 ],
-                data: { trial_part: 'instr', question: 'scan_tradeoff' }
-            };
+                correctIndex: 2,
+                feedbackHTML: `<p>Incorrect. The right time to dig depends on scanner accuracy, scan cost, and your reward/penalty structure. You should not just rely on last few scanner readings.</p>`
+            });
 
-            const instrQuiz = {
-                timeline: [instrQ1, instrQ2, instrQ3],
-                loop_function: function (data) {
-                    // data.values() is an array of these three trials in order
-                    const resp = data.values();
-                    const q1 = resp[0].response === 0;  // scan
-                    const q2 = resp[1].response === 2;  // only correct 70% of the time
-                    const q3 = resp[2].response === 2;  // it depends
-                    const allCorrect = q1 && q2 && q3;
-                    if (!allCorrect) {
-                        alert('One or more answers were incorrect. Please review the instructions and try again.');
-                    }
-                    return !allCorrect;  // return true to repeat the quiz if any questions were wrong
-                }
-            };
 
 
         // Build the experiment timeline 
@@ -320,8 +379,9 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             choices: ['Start']
         });
 
-        // comprehension check – participant must get all three right before continuing
-            timeline.push(instrQuiz);
+        // comprehension check – each question loops until correct - Joe's preference
+            timeline.push(quizQ1, quizQ2, quizQ3);
+
 
         // initialize first asteroid
         timeline.push({ type: 'call-function', func: resetAsteroid });
