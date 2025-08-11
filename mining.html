@@ -72,8 +72,8 @@ Changes/Additions: must add questionnaires, must add consent form, likely
     <div id="jspsych-target"></div>
     <script>
         // Parameters
-        const N_BLOCKS = 5;
-        const TRIALS_PER_BLOCK = 10;
+        const N_BLOCKS = 2;
+        const TRIALS_PER_BLOCK = 2;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // Scanner noise, probability of a correct scan
         const SCAN_COST = 1;
@@ -113,7 +113,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                     return `
   <div id="balance">Gold: <strong>${currentMoney}</strong></div>
   <div>Block ${globalBlockIndex + 1} of ${N_BLOCKS} (Blocks left: ${blocksLeft})</div>
-  <div>Trial ${trialsDone} of ${TRIALS_PER_BLOCK} (Trials left: ${trialsLeft})</div>
+  <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Trials left: ${trialsLeft})</div>
   <p>Previous observation: <strong>${scanMsg || 'None'}</strong></p>
   <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
   <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
@@ -263,7 +263,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                 choices: [
                     'Yes, that is a strong indication of gold on the surface.',
                     'No, the scanner is unreliable, so you should ignore it.',
-                    'Not necessarily, it depends on the scanner noise level, the cost of the scan and the payoff. I need to think about all of these things to make a decision.'
+                    'Maybe. It depends on the scanner reliability, the cost of a scan, and the company reward and punishment for gold ore'
                 ],
                 data: { trial_part: 'instr', question: 'scan_tradeoff' }
             };
@@ -313,6 +313,8 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         <p>If you select the incorrect location to dig You lose −${PENALTY} gold.</p>
         <p>Scan as many times as you like to gain information about the gold location.</p> 
         <p>You only get to pick a dig location once for each asteroid. So please make sure you're ready to dig in which ever location before doing so.</p>
+        <p>The scanner's reliability, cost of using the scanner, reward, and punishment are set by the company for each particular asteroid. You will be told their amounts each time.</p>
+        <p>Your compensation for the experiment partially depends on your <strong>total gold balance.</strong></p>
         <p>Press <strong>Start</strong> to begin.</p>
       `,
             choices: ['Start']
@@ -332,7 +334,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                 stimulus: function () {
                     return `
             <h3>Asteroid Field ${b + 1} of ${N_BLOCKS}</h3>
-            <p>Current parameters:</p>
+            <p>Scanner reliability, cost, reward, and penalty for this asteroid field:</p>
             <ul>
               <li>Scanner accuracy: ${Math.round(NOISE * 100)}%</li>
               <li>Scan cost: ${SCAN_COST} gold</li>
