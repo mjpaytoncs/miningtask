@@ -370,35 +370,69 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
         // Build the experiment timeline 
         const timeline = [];
+        
+        //Instructions now broken into multiple pages due to length. 
 
-        // Instructions
+        // Instructions 1 
         timeline.push({
             type: 'html-button-response',
             stimulus: `
         <h2>Mining Task (Draft instructions)</h2>
         <p>In this experiment, your will pretend to work for an asteroid mining company in the year 3000.</p>
-        <p>The company has sent mining drones all over the galaxy. Your job is to help us collect rare minerals from asteroids.</p>
+        <p>The company has sent mining drones all over the galaxy. Your job is to help us collect gold from asteroids.</p>
         <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
         <p>But we don't know whether gold is near the surface or in the core.</p>
-        <p></p>
+        `,
+            choices: ['Next']
+        });
+
+        // Instructions 2
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: `
         <p>Your task is to decide whether to dig near the surface or into the core.</p>
-        <p>If you dig where the gold is located, then you will get a reward as compensation from the company. However, the asteroids are fragile.</p> 
+        <p>If you dig where the gold is located, then you will get a reward as compensation from the company. However, the asteroids are <strong>fragile.</strong></p> 
         <p>So, once you dig, it will break apart and any remaining gold becomes unsalvageable.</p>  
         <p>If you dig in the incorrect location, you cannot get the gold and the company will penalize you by lowering your compensation.</p>  
-        <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are UNRELIABLE.</p> 
+        <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are <strong>unreliable.</strong></p> 
         <p>You can scan each asteroid as many times as you want. But, scanning is costly and so, the company charges you given amount per scan.</p>
-        <p></p>
+        `,
+                choices: ['Next']
+            });
+
+          // Instructions 3
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: `  
         <p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
         <p>When you land on an asteroid, you have a options about what to do:</p>
-        <p>🔍 <strong>Scan</strong> (cost ${SCAN_COST}): you get noisy info about the location of the gold.</p>
+        <p>🔍 <strong>Scan</strong> (cost depends on the specific asteriod field): you get noisy info about the location of the gold.</p>
         <p>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</p>
-        <p>If you select the correct location to dig: You win +${REWARD} gold.</p> 
-        <p>If you select the incorrect location to dig You lose −${PENALTY} gold.</p>
+        <p>If you select the correct location to dig: You win gold.</p> 
+        <p>If you select the incorrect location to dig: You lose gold.</p>
         <p>Scan as many times as you like to gain information about the gold location.</p> 
+        `,
+                choices: ['Next']
+            });
+
+        // Instructions 4
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: `
         <p>You only get to pick a dig location once for each asteroid. So please make sure you're ready to dig in which ever location before doing so.</p>
         <p>The scanner's reliability, cost of using the scanner, reward, and punishment are set by the company for each particular asteroid. You will be told their amounts each time.</p>
         <p>Your compensation for the experiment partially depends on your <strong>total gold balance.</strong></p>
-        <p>Press <strong>Start</strong> to begin.</p>
+        
+        `,
+                choices: ['Next']
+            });
+
+        // Instructions 5
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: `
+                <p>Before we send you to the first asteriod field, we will check your understanding of the actions available and your role in the mission.</p>
+                <p>Press <strong>Start</strong> to begin.</p>
       `,
             choices: ['Start']
         });
@@ -425,7 +459,8 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                 stimulus: function () {
                     return `
             <h3>Asteroid Field ${b + 1} of ${N_BLOCKS}</h3>
-            <p>Scanner reliability, cost, reward, and penalty for this asteroid field:</p>
+            <p>You have now travelled to a new asteroid field.</p>
+            <p>The company has determined new values for scanner reliability, cost, reward and penalty for this asteroid field:</p>
             <ul>
               <li>Scanner accuracy: ${Math.round(pNoise * 100)}%</li>
               <li>Scan cost: ${pScanCost} gold</li>
