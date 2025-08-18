@@ -22,6 +22,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
     <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-html-button-response.js"></script>
     <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-call-function.js"></script>
     <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-html-slider-response.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-survey-multi-choice.js"></script>
     <link href="https://unpkg.com/jspsych@6.3.0/css/jspsych.css" rel="stylesheet">
     <style>
         #balance {
@@ -65,6 +66,19 @@ Changes/Additions: must add questionnaires, must add consent form, likely
     white-space: nowrap;
     box-sizing: border-box;
   }
+
+  /* Center and space choices for horizontal surveys */
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-opts {
+  display: flex;
+  justify-content: center;   /* center the whole row */
+  gap: 18px;                 /* space between choice columns */
+  padding-left: 0;           /* remove default ul indent */
+  margin: 10px 0;
+}
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-opts li {
+  list-style: none;          /* hide bullets (some browsers) */
+}
+
     </style>
 </head>
 
@@ -72,8 +86,8 @@ Changes/Additions: must add questionnaires, must add consent form, likely
     <div id="jspsych-target"></div>
     <script>
         // Parameters
-        const N_BLOCKS = 2; // must match number of blocks in per-block overrides
-        const TRIALS_PER_BLOCK = 2;
+        const N_BLOCKS = 1; // must match number of blocks in per-block overrides
+        const TRIALS_PER_BLOCK = 1;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // Scanner noise, probability of a correct scan
         const SCAN_COST = 1;
@@ -489,6 +503,216 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                 timeline.push({ type: 'call-function', func: resetAsteroid });
             }
         }
+
+        // Questionnaires- editable 
+       
+    
+
+            // Reusable scales to help with randomization
+            const Q_SCALES = {
+                    often4: ['Never', 'Rarely', 'Sometimes', 'Often'],
+                    agree5: ['Strongly disagree', 'Disagree', 'Neither agree nor disagree', 'Agree', 'Strongly agree'],
+                    agree4: ['Do not agree', 'Agree slightly', 'Agree moderately', 'Agree very much'],   
+                    often5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Almost always'],
+                    typical5: ['Not at all typical of me', 'Not very typical of me', 'Somewhat typical of me', 'Fairly typical of me', 'Very typical of me'],
+                    freq5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'],
+                    days4:['Not at all', 'Several days', 'More than half the days', 'Nearly every day']
+                };
+
+                const DEFAULT_SCALE = Q_SCALES.agree5;  // defualt scale set as agree5 
+
+
+            // Question sets 
+            // Items may be strings (use set-level options) or objects with their own overrides
+            const Q_SETS = [
+                {
+                    key: 'rrs',
+                    title: 'Ruminative Responses Scale',
+                    preamble: 'Look at the scale below and please tell us if you never, sometimes, often, or always think or do each one when you feel down, sad, or depressed. Please indicate what you generally do, not what you think you should do.',
+                    optionsKey: 'often4',       // 4-point
+                    items: [
+                        `Think about how alone you feel.`,
+                        `Think "I won't be able to do my job if I don't snap out of this."`,
+                        `Think about your feelings of fatigue and achiness.`,
+                        `Think about how hard it is to concentrate.`,
+                        `Think "What am I doing to deserve this?"`,
+                        `Think about how passive and unmotivated you feel.`,
+                        `Analyze recent events to try to understand why you are depressed.`,
+                        `Think about how you don't seem to feel anything anymore.`,
+                        `Think "Why can't I get going?"`,
+                        `Think "Why do I always react this way?"`,
+                        `Go away by yourself and think about why you feel this way.`,
+                        `Write down what you are thinking and analyze it.`,
+                        `Think about a recent situation, wishing it had gone better.`,
+                        `Think "I won't be able to concentrate if I keep feeling this way."`,
+                        `Think "Why do I have problems other people don't have?"`,
+                        `Think "Why can't I handle things better?"`,
+                        `Think about how sad you feel.`,
+                        `Think about all your shortcomings, failings, faults, mistakes.`,
+                        `Think about how you don't feel up to doing anything.`,
+                        `Analyze your personality to try to understand why you are depressed.`,
+                        `Go someplace alone to think about your feeling.`,
+                        'Think about how angry you are with yourself.'
+                    ]
+                },
+                {
+                    key: 'pswq',
+                    title: 'Penn State Worry Questionnaire',
+                    preamble: 'Think about how typical each statement is for you.',
+                    optionsKey: 'typical5',       // 5-point
+                    items: [
+                        "If I do not have enough time to do everything, I do not worry about it.",
+                        "My worries overwhelm me.",
+                        "I do not tend to worry about things.",
+                        "Many situations make me worry.",
+                        "I know I should not worry about things, but I just cannot help it.",
+                        "When I am under pressure I worry a lot.",
+                        "I am always worrying about something.",
+                        "I find it easy to dismiss worrisome thoughts.",
+                        "As soon as I finish one task, I start to worry about everything else I have to do.",
+                        "I never worry about anything.",
+                        "When there is nothing more I can do about a concern, I do not worry about it any more.",
+                        "I have been a worrier all my life.",
+                        "I notice that I have been worrying about things.",
+                        "Once I start worrying, I cannot stop.",
+                        "I worry all the time.",
+                        "I worry about projects until they are all done."
+                    ]
+                },
+                {
+                    key: 'ptq',
+                    title: 'Perseverative Thinking Questionnaire',
+                    preamble: ' In this questionnaire, you will be asked to describe how you typically think about negative experiences or problems. Please read the following statements and rate the extent to which they apply to you when you think about negative experiences or problems.',
+                    optionsKey: 'often5',
+                    items: [
+                        ' The same thoughts keep going through my mind',
+                        ' Thoughts intrude into my mind.',
+                        'I can’t stop dwelling on my thoughts.',
+                        'I think about many problems without solving any of them.',
+                        'I can’t do anything else while thinking about my problems',
+                        'My thoughts repeat themselves.',
+                        'Thoughts come to my mind without me wanting them to.',
+                        'I get stuck on certain issues and can’t move on',
+                        'I keep asking myself questions without finding an answer.',
+                        'My thoughts prevent me from focusing on other things.',
+                        'I keep thinking about the same issue all the time.',
+                        'Thoughts just pop into my mind.',
+                        'I feel driven to continue dwelling on the same issue.',
+                        ' My thoughts are not much help to me',
+                        ' My thoughts take up all my attention.'
+                    ]
+                },
+                {
+                    key: 'PBRS',
+                    title: 'Positive Beliefs about Rumination Scale ',
+                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                    optionsKey: 'agree4',
+                    items: [
+                        'I need to ruminate about my problems to find answers to my depression.',
+                        'Ruminating about my depression helps me to understand past mistakes and failures.',
+                        'I need to ruminate about my problems to find the causes of my depression.',
+                        'Ruminating about my feelings helps me to recognize the triggers for my depression.',
+                        'I need to ruminate about the bad things that have happened in the past to make sense of them.',
+                        'In order to understand my feelings of depression I need to ruminate about my problems.',
+                        'Ruminating about the past helps me to prevent future mistakes and failures.',
+                        'Ruminating about the past helps me work out how things could have been done better.',
+                        'Ruminating about my problems helps me to focus on the most important things.'
+                    ]
+                },
+
+                {
+                    key: 'NBRS',
+                    title: 'Negative Beliefs about Rumination Scale ',
+                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                    optionsKey: 'agree4',
+                    items: [
+                        "Ruminating makes me physically ill.",
+                        "When I ruminate I can't do anything else.",
+                        "Ruminating means I'm out of control.",
+                        "Ruminating about my problems is uncontrollable.",
+                        "Ruminating about my depression could make me kill myself.",
+                        "Ruminating can make me harm myself.",
+                        "I cannot stop myself from ruminating.",
+                        "It is impossible not to ruminate about the bad things that have happened in the past.",
+                        "Everyone would desert me if they knew how much I ruminate about myself.",
+                        "People will reject me if I ruminate.",
+                        "Ruminating will turn me into a failure.",
+                        "Ruminating means I'm a bad person.",
+                        "Only weak people ruminate."
+                    ]
+                }
+            ];
+
+            // ---- PHQ-8 always-last questionnaire (not randomized) ----
+            const ALWAYS_LAST = {
+                key: 'PHQ-8',
+                title: 'Patient Health Questionnaire',
+                preamble: 'Over the last 2 weeks, how often have  you been bothered by any of the following problems?:',
+                optionsKey: 'days4',
+                items: [
+                    "Little interest or pleasure in doing things.",
+                    "Feeling down, depressed, irritable, or hopeless.",
+                    "Trouble falling or staying asleep, or sleeping too much.",
+                    "Feeling tired or having little energy.",
+                    "Poor appetite or overeating.",
+                    "Feeling bad about yourself — or that you are a failure or have let yourself or your family down.",
+                    "Trouble concentrating on things, such as school work, reading, or watching television.",
+                    "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual."
+                ]
+            };
+
+            // ---- Helper: build a jsPsych survey trial from a set ----
+            function makeSurveyBlock(set) {
+                const setOptions =
+                    set.options ||
+                    (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
+                    DEFAULT_SCALE;
+
+                const questions = set.items.map((it, i) => {
+                    // Allow strings or rich objects per item
+                    const item = (typeof it === 'string') ? { prompt: it } : it;
+
+                    // Decide options for this item (item overrides > set options > default)
+                    const itemOptions =
+                        item.options ||
+                        (item.optionsKey ? Q_SCALES[item.optionsKey] : null) ||
+                        setOptions ||
+                        DEFAULT_SCALE;
+
+                    // Allow per-item required/horizontal overrides; else fall back to set or defaults
+                    const required =
+                        (typeof item.required === 'boolean') ? item.required :
+                            (typeof set.required === 'boolean') ? set.required : true;
+
+                    const horizontal =
+                        (typeof item.horizontal === 'boolean') ? item.horizontal :
+                            (typeof set.horizontal === 'boolean') ? set.horizontal : true;
+
+                    return {
+                        prompt: item.prompt,
+                        name: `${set.key}_${i + 1}`,   // column name in CSV
+                        options: itemOptions,
+                        required: required,
+                        horizontal: horizontal
+                    };
+                });
+
+                return {
+                    type: 'survey-multi-choice',
+                    preamble: `<h3>${set.title}</h3>${set.preamble ? `<p>${set.preamble}</p>` : ''}`,
+                    questions: questions,
+                    randomize_question_order: true,  // shuffle items within this questionnaire
+                    button_label: 'Next',
+                    data: { questionnaire: set.key }
+                };
+            }
+
+            // ---- Add questionnaires to the timeline ----
+            const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
+            randomizedSets.forEach(set => timeline.push(makeSurveyBlock(set)));
+            timeline.push(makeSurveyBlock(ALWAYS_LAST)); // fixed last
+
+
 
        // final screen
         timeline.push({
