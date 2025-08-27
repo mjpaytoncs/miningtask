@@ -505,7 +505,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         }
 
         // Questionnaires- editable 
-       
+
     
 
             // Reusable scales to help with randomization
@@ -603,44 +603,65 @@ Changes/Additions: must add questionnaires, must add consent form, likely
                     ]
                 },
                 {
-                    key: 'PBRS',
-                    title: 'Positive Beliefs about Rumination Scale ',
+                    key: 'MCQ30-F1',
+                    title: 'Cognitive Confidence',
                     preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                     optionsKey: 'agree4',
                     items: [
-                        'I need to ruminate about my problems to find answers to my depression.',
-                        'Ruminating about my depression helps me to understand past mistakes and failures.',
-                        'I need to ruminate about my problems to find the causes of my depression.',
-                        'Ruminating about my feelings helps me to recognize the triggers for my depression.',
-                        'I need to ruminate about the bad things that have happened in the past to make sense of them.',
-                        'In order to understand my feelings of depression I need to ruminate about my problems.',
-                        'Ruminating about the past helps me to prevent future mistakes and failures.',
-                        'Ruminating about the past helps me work out how things could have been done better.',
-                        'Ruminating about my problems helps me to focus on the most important things.'
+                        "I do not trust my memory.",
+                        "I have a poor memory.",
+                        "I have little confidence in my memory for actions.",
+                        "I have little confidence in my memory for places.",
+                        "I have little confidence in my memory for words and names.",
+                        "My memory can mislead me at times."
                     ]
                 },
 
-                {
-                    key: 'NBRS',
-                    title: 'Negative Beliefs about Rumination Scale ',
+                 {
+                    key: 'MCQ30-F3',
+                    title: 'Cognitive Self-Consciousness',
                     preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                     optionsKey: 'agree4',
                     items: [
-                        "Ruminating makes me physically ill.",
-                        "When I ruminate I can't do anything else.",
-                        "Ruminating means I'm out of control.",
-                        "Ruminating about my problems is uncontrollable.",
-                        "Ruminating about my depression could make me kill myself.",
-                        "Ruminating can make me harm myself.",
-                        "I cannot stop myself from ruminating.",
-                        "It is impossible not to ruminate about the bad things that have happened in the past.",
-                        "Everyone would desert me if they knew how much I ruminate about myself.",
-                        "People will reject me if I ruminate.",
-                        "Ruminating will turn me into a failure.",
-                        "Ruminating means I'm a bad person.",
-                        "Only weak people ruminate."
+                        "I am constantly aware of my thinking.",
+                        "I pay close attention to the way my mind works.",
+                        "I think a lot about my thoughts.",
+                        "I constantly examine my thoughts.",
+                        "I monitor my thoughts.",
+                        "I am aware of the way my mind works when I am thinking through a problem."
                     ]
-                }
+                },
+
+                  {
+                    key: 'MCQ30-F4',
+                    title: 'Uncontrollability',
+                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                    optionsKey: 'agree4',
+                    items: [
+                        "My worrying thoughts persist, no matter how I try to stop them.",
+                        "When I start worrying I cannot stop.",
+                        "I could make myself sick with worrying.",
+                        "I cannot ignore my worrying thoughts.",
+                        "My worrying could make me go mad.",
+                        "My worrying is dangerous for me."
+                    ]
+                },
+
+                   {
+                    key: 'MCQ30-F5',
+                    title: 'Need to Control',
+                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                    optionsKey: 'agree4',
+                    items: [
+                         "If I could not control my thoughts, I would not be able to function.",
+                        "Not being able to control my thoughts is a sign of weakness.",
+                        "I should be in control of my thoughts all of the time.",
+                        "It is bad to think certain thoughts.",
+                        "If I did not control a worrying thought and then it happened, it would be my fault.",
+                        "I will be punished for not controlling certain thoughts."
+
+                    ]
+                },
             ];
 
             // ---- PHQ-8 always-last questionnaire (not randomized) ----
