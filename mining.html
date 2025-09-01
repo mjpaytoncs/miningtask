@@ -32,6 +32,7 @@ Edit Notes (2025-08-31):
     <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-call-function.js"></script>
     <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-html-slider-response.js"></script>
     <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-survey-multi-choice.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-instructions.js"></script>
     <link href="https://unpkg.com/jspsych@6.3.0/css/jspsych.css" rel="stylesheet">
     <style>
         #balance {
@@ -78,39 +79,182 @@ Edit Notes (2025-08-31):
         }
 
         /* Center horizontal survey choices even when there is no <ul> wrapper */
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal { 
-  text-align: center; 
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
+            text-align: center;
+        }
+
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
+            display: inline-flex;
+            /* keeps radio + label together */
+            align-items: center;
+            /* vertical align radio and text */
+            margin: 0 18px;
+            /* match existing spacing */
+        }
+
+        /* optional: tiny gap between radio and label, non-destructive */
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
+            margin-right: 6px;
+        }
+
+        /* Force-center horizontal options even without a <ul> wrapper */
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
+            text-align: center !important;
+            /* center inline children */
+        }
+
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
+            display: inline-block !important;
+            /* sit side-by-side */
+            width: auto !important;
+            /* no 100% width blocks */
+            margin: 0 18px !important;
+            /* spacing like before */
+            vertical-align: middle !important;
+            text-align: left !important;
+            /* keep label text left */
+        }
+
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
+            margin-right: 6px !important;
+            /* small gap radio→label */
+        }
+
+        /* ===== HUD / "spaceship console" look ===== */
+.hud {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  background: radial-gradient(120% 80% at 50% 0%, #0b1220 0%, #061019 60%);
+  color: #cfe8ff;
+  border: 1px solid rgba(80,180,255,.35);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow:
+    0 0 0 1px rgba(80,180,255,.18),
+    0 10px 28px rgba(0,0,0,.45),
+    inset 0 0 28px rgba(80,180,255,.08);
 }
 
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
-  display: inline-flex;         /* keeps radio + label together */
-  align-items: center;          /* vertical align radio and text */
-  margin: 0 18px;               /* match existing spacing */
+.hud-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
-/* optional: tiny gap between radio and label, non-destructive */
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
-  margin-right: 6px;
+.hud-balance {
+  font-size: 1.3rem;
+  letter-spacing: .4px;
 }
 
-/* Force-center horizontal options even without a <ul> wrapper */
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
-  text-align: center !important;            /* center inline children */
+.hud-meta {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 14px;
+  align-items: center;
+  opacity: .95;
 }
 
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal
-  .jspsych-survey-multi-choice-option {
-  display: inline-block !important;          /* sit side-by-side */
-  width: auto !important;                    /* no 100% width blocks */
-  margin: 0 18px !important;                 /* spacing like before */
-  vertical-align: middle !important;
-  text-align: left !important;               /* keep label text left */
+.hud-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
 }
 
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal
-  .jspsych-survey-multi-choice-option input {
-  margin-right: 6px !important;              /* small gap radio→label */
+.hud-card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(80,180,255,.22);
+  border-radius: 10px;
+  padding: 10px 12px;
 }
+
+.hud-card p { margin: 6px 0; }
+
+.hud-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: linear-gradient(90deg, transparent, rgba(80,180,255,.35), transparent);
+}
+
+/* subtle highlight for numbers */
+.hud strong { color: #fff; }
+
+/* keeps layout tidy on very small screens */
+@media (max-width: 480px) {
+  .hud-meta { grid-auto-flow: row; gap: 6px; }
+}
+
+/* Buttons for the Scan/Core/Surface choices on the HUD screen */
+.hud-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.hud-btn {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(80,180,255,.35);
+  background: rgba(255,255,255,.06);
+  color: #cfe8ff;
+  box-shadow:
+    0 0 0 1px rgba(80,180,255,.18),
+    inset 0 0 18px rgba(80,180,255,.08);
+  cursor: pointer;
+}
+
+.hud-btn:hover { background: rgba(255,255,255,.10); }
+.hud-btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(80,180,255,.55); }
+
+/* Force this HUD to stack cards vertically */
+.hud-grid.hud-stack { grid-template-columns: 1fr; }
+
+/* Make the action button group look like a HUD card (dark) */
+.hud { margin-bottom: 10px; } /* small gap above the buttons */
+
+.hud-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  background: rgba(8,16,26,.88);
+  border: 1px solid rgba(80,180,255,.22);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow:
+    inset 0 0 28px rgba(80,180,255,.08),
+    0 10px 28px rgba(0,0,0,.25);
+
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Make buttons solid and console-like (override any defaults) */
+.hud-btn {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(80,180,255,.35) !important;
+  background: rgba(16,32,48,.9) !important;   /* darker fill */
+  color: #cfe8ff !important;
+  box-shadow:
+    0 0 0 1px rgba(80,180,255,.18),
+    inset 0 0 18px rgba(80,180,255,.10);
+  cursor: pointer;
+  opacity: 1 !important; /* prevent washed-out look */
+}
+
+.hud-btn:hover { background: rgba(22,44,66,.95) !important; }
+.hud-btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(80,180,255,.55) !important; }
 
 
     </style>
@@ -207,97 +351,128 @@ Edit Notes (2025-08-31):
         }
 
         // Trial: scan vs dig
-        const scanOrDig = {
-            type: 'html-button-response',
-            stimulus: function () {
-                const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
-                const trialsDone = globalTrialIndex + 1;
-                const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
-                return `
-  <div id="balance">Gold: <strong>${currentMoney}</strong></div>
-  <div>Asteroid Field ${globalBlockIndex + 1} of ${N_BLOCKS} (Asteroid Fields left: ${blocksLeft})</div>
-  <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Asteroids left: ${trialsLeft})</div>
-  <p>Current scanner observation: <strong>${scanMsg || 'None'}</strong></p>
-  <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
-  <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
-  <p>Scan accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
-  <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
-  <p>Gold for correct dig: <strong>${pReward}</strong> gold</p>
-  <p>Gold lost for incorrect dig: <strong>${pPenalty}</strong> gold</p>
+            const scanOrDig = {
+                type: 'html-button-response',
+                stimulus: function () {
+                    const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
+                    const trialsDone = globalTrialIndex + 1;
+                    const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
 
- 
-        `;
-            },
-            choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
-            on_finish: function (data) {
-                const choice = parseInt(data.response);
+                    return `
+    <div class="hud">
+      <div class="hud-header">
+        <div class="hud-balance" id="balance">Gold: <strong>${currentMoney}</strong></div>
+        <div class="hud-meta">
+          <div>Asteroid Field ${globalBlockIndex + 1} of ${N_BLOCKS} (Asteroid Fields left: ${blocksLeft})</div>
+          <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Asteroids left: ${trialsLeft})</div>
+        </div>
+      </div>
 
-                // ======== (#5) Capture indices for this action row ========
-                data.block_index = globalBlockIndex;
-                data.trial_index = globalTrialIndex;
+      <div class="hud-grid hud-stack">
+        <!-- Parameters card FIRST, so it appears on top -->
+        <div class="hud-card">
+          <p>Scan accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
+          <div class="hud-divider"></div>
+          <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
+          <div class="hud-divider"></div>
+          <p>Gold for correct dig: <strong>${pReward}</strong> gold</p>
+          <div class="hud-divider"></div>
+          <p>Gold lost for incorrect dig: <strong>${pPenalty}</strong> gold</p>
+        </div>
 
-                if (choice === 0) {
-                    // -------- SCAN --------
-                    data.scan = true;
-                    // track pre/post for completeness (scan row)
-                    const pre_balance_scan = currentMoney;
-                    currentMoney -= pScanCost;
-                    const post_balance_scan = currentMoney;
-                    data.pre_balance = pre_balance_scan;
-                    data.post_balance = post_balance_scan;
+        <!-- Scanner readout card SECOND -->
+        <div class="hud-card">
+          <p>Current scanner observation: <strong>${scanMsg || 'None'}</strong></p>
+          <div class="hud-divider"></div>
+          <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
+          <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
+        </div>
+      </div>
+    </div>
+    `;
+                },
 
-                    // noisy observation
-                    const obs = (Math.random() < pNoise)
-                        ? trueState
-                        : (trueState === 'surface' ? 'core' : 'surface');
-                    scanMsg = (obs === 'surface')
-                        ? 'Scanners suggest there is gold at the surface'
-                        : 'Scanners suggest there is gold in the core';
-                    // update counters
-                    if (obs === 'surface') {
-                        scanSurfaceCount++;
+                // exact same labels, just styled
+                choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
+
+                // use HUD-styled buttons for this trial only
+                button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+
+                // center the button group under the HUD
+                on_load: function () {
+                    const g = document.getElementById('jspsych-html-button-response-btngroup');
+                    if (g) g.classList.add('hud-actions');
+                },
+
+                on_finish: function (data) {
+                    const choice = parseInt(data.response);
+
+                    // ======== (#5) Capture indices for this action row ========
+                    data.block_index = globalBlockIndex;
+                    data.trial_index = globalTrialIndex;
+
+                    if (choice === 0) {
+                        // -------- SCAN --------
+                        data.scan = true;
+                        // track pre/post for completeness (scan row)
+                        const pre_balance_scan = currentMoney;
+                        currentMoney -= pScanCost;
+                        const post_balance_scan = currentMoney;
+                        data.pre_balance = pre_balance_scan;
+                        data.post_balance = post_balance_scan;
+
+                        // noisy observation
+                        const obs = (Math.random() < pNoise)
+                            ? trueState
+                            : (trueState === 'surface' ? 'core' : 'surface');
+                        scanMsg = (obs === 'surface')
+                            ? 'Scanners suggest there is gold at the surface'
+                            : 'Scanners suggest there is gold in the core';
+                        // update counters
+                        if (obs === 'surface') {
+                            scanSurfaceCount++;
+                        } else {
+                            scanCoreCount++;
+                        }
+                        scanCount++;
                     } else {
-                        scanCoreCount++;
+                        // -------- DIG --------
+                        data.scan = false;
+
+                        // ======== (#5) pre/post balance and cumulative scan cost on dig row ========
+                        const pre_balance = currentMoney; // before applying reward/penalty
+                        const dug = (choice === 1) ? 'core' : 'surface';
+                        const correct = (dug === trueState);
+
+                        if (correct) {
+                            currentMoney += pReward;
+                        } else {
+                            currentMoney -= pPenalty;
+                        }
+
+                        const post_balance = currentMoney;
+                        const cumulative_scan_cost = scanCount * pScanCost;
+
+                        data.correct = correct;
+                        data.delta = correct ? pReward : -pPenalty;
+                        data.dug = dug;
+                        data.scanCount = scanCount;  // total scans this trial
+                        data.scanCoreCount = scanCoreCount;
+                        data.scanSurfaceCount = scanSurfaceCount;
+
+                        // add completeness fields
+                        data.pre_balance = pre_balance;
+                        data.post_balance = post_balance;
+                        data.cumulative_scan_cost = cumulative_scan_cost;
                     }
-                    scanCount++;
-                } else {
-                    // -------- DIG --------
-                    data.scan = false;
-
-                    // ======== (#5) pre/post balance and cumulative scan cost on dig row ========
-                    const pre_balance = currentMoney; // before applying reward/penalty
-                    const dug = (choice === 1) ? 'core' : 'surface';
-                    const correct = (dug === trueState);
-
-                    if (correct) {
-                        currentMoney += pReward;
-                    } else {
-                        currentMoney -= pPenalty;
-                    }
-
-                    const post_balance = currentMoney;
-                    const cumulative_scan_cost = scanCount * pScanCost;
-
-                    data.correct = correct;
-                    data.delta = correct ? pReward : -pPenalty;
-                    data.dug = dug;
-                    data.scanCount = scanCount;  // total scans this trial
+                    // record scan counters every time
+                    data.scanCount = scanCount;
                     data.scanCoreCount = scanCoreCount;
                     data.scanSurfaceCount = scanSurfaceCount;
-
-                    // add completeness fields
-                    data.pre_balance = pre_balance;
-                    data.post_balance = post_balance;
-                    data.cumulative_scan_cost = cumulative_scan_cost;
+                    // rt is already logged by html-button-response
                 }
-                // record scan counters every time
-                data.scanCount = scanCount;
-                data.scanCoreCount = scanCoreCount;
-                data.scanSurfaceCount = scanSurfaceCount;
-                // rt is already logged by html-button-response
-            }
+            };
 
-        };
 
 
         // loop until they choose to dig, allows infinite scanning
@@ -494,69 +669,46 @@ Edit Notes (2025-08-31):
 
         //Instructions now broken into multiple pages due to length. 
 
-        // Instructions 1 
+        // Instructions as a single nav-able component (Next/Previous)
+        const instrPages = [
+            `<h2>Mining Task (Draft instructions)</h2>
+             <p>In this experiment, you will pretend to work for an asteroid mining company in the year 3000.</p>
+             <p>The company has sent mining drones all over the galaxy. Your job is to help us collect gold from asteroids.</p>
+             <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
+             <p>But we don't know whether gold is near the surface or in the core.</p>`,
+
+            `<p>Your task is to decide whether to dig near the surface or into the core.</p>
+             <p>If you dig where the gold is located, then you will get a reward as compensation from the company. However, the asteroids are <strong>fragile.</strong></p> 
+             <p>So, once you dig, it will break apart and any remaining gold becomes unsalvageable.</p>  
+             <p>If you dig in the incorrect location, you cannot get the gold and the company will penalize you by lowering your compensation.</p>  
+             <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are <strong>unreliable.</strong></p> 
+             <p>You can scan each asteroid as many times as you want. But, scanning is costly and so, the company charges you given amount per scan.</p>`,
+
+            `<p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
+             <p>When you land on an asteroid, you have a options about what to do:</p>
+             <p>🔍 <strong>Scan</strong> (cost depends on the specific asteroid field): you get noisy info about the location of the gold.</p>
+             <p>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</p>
+             <p>If you select the correct location to dig: You win gold.</p> 
+             <p>If you select the incorrect location to dig: You lose gold.</p>
+             <p>Scan as many times as you like to gain information about the gold location.</p>`,
+
+            `<p>You only get to pick a dig location once for each asteroid. So please make sure you're ready to dig in which ever location before doing so.</p>
+             <p>The scanner's reliability, cost of using the scanner, reward, and punishment are set by the company for each particular asteroid. You will be told their amounts each time.</p>
+             <p>Your compensation for the experiment partially depends on your <strong>total gold balance.</strong></p>`,
+
+            `<p>Before we send you to the first asteroid field, we will check your understanding of the actions available and your role in the mission.</p>
+             <p>Press <strong>Next</strong> to begin. Press <strong>Previous</strong> to review.</p>`
+        ];
+
         timeline.push({
-            type: 'html-button-response',
-            stimulus: `
-        <h2>Mining Task (Draft instructions)</h2>
-        <p>In this experiment, you will pretend to work for an asteroid mining company in the year 3000.</p>
-        <p>The company has sent mining drones all over the galaxy. Your job is to help us collect gold from asteroids.</p>
-        <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
-        <p>But we don't know whether gold is near the surface or in the core.</p>
-        `,
-            choices: ['Next']
+            type: 'instructions',
+            pages: instrPages,
+            show_clickable_nav: true,
+            allow_backward: true,
+            button_label_next: 'Next',
+            button_label_previous: 'Previous'
         });
 
-        // Instructions 2
-        timeline.push({
-            type: 'html-button-response',
-            stimulus: `
-        <p>Your task is to decide whether to dig near the surface or into the core.</p>
-        <p>If you dig where the gold is located, then you will get a reward as compensation from the company. However, the asteroids are <strong>fragile.</strong></p> 
-        <p>So, once you dig, it will break apart and any remaining gold becomes unsalvageable.</p>  
-        <p>If you dig in the incorrect location, you cannot get the gold and the company will penalize you by lowering your compensation.</p>  
-        <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are <strong>unreliable.</strong></p> 
-        <p>You can scan each asteroid as many times as you want. But, scanning is costly and so, the company charges you given amount per scan.</p>
-        `,
-            choices: ['Next']
-        });
-
-        // Instructions 3
-        timeline.push({
-            type: 'html-button-response',
-            stimulus: `  
-        <p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
-        <p>When you land on an asteroid, you have a options about what to do:</p>
-        <p>🔍 <strong>Scan</strong> (cost depends on the specific asteroid field): you get noisy info about the location of the gold.</p>
-        <p>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</p>
-        <p>If you select the correct location to dig: You win gold.</p> 
-        <p>If you select the incorrect location to dig: You lose gold.</p>
-        <p>Scan as many times as you like to gain information about the gold location.</p> 
-        `,
-            choices: ['Next']
-        });
-
-        // Instructions 4
-        timeline.push({
-            type: 'html-button-response',
-            stimulus: `
-        <p>You only get to pick a dig location once for each asteroid. So please make sure you're ready to dig in which ever location before doing so.</p>
-        <p>The scanner's reliability, cost of using the scanner, reward, and punishment are set by the company for each particular asteroid. You will be told their amounts each time.</p>
-        <p>Your compensation for the experiment partially depends on your <strong>total gold balance.</strong></p>
-        
-        `,
-            choices: ['Next']
-        });
-
-        // Instructions 5
-        timeline.push({
-            type: 'html-button-response',
-            stimulus: `
-                <p>Before we send you to the first asteroid field, we will check your understanding of the actions available and your role in the mission.</p>
-                <p>Press <strong>Start</strong> to begin.</p>
-      `,
-            choices: ['Start']
-        });
 
         // comprehension check – each question loops until correct - Joe's preference
         timeline.push(quizQ1, quizQ2, quizQ3);
@@ -575,26 +727,47 @@ Edit Notes (2025-08-31):
             });
 
             // block reminder parameter reminder text
+            // block reminder parameter reminder text (HUD-styled; wording unchanged)
             timeline.push({
                 type: 'html-button-response',
                 stimulus: function () {
                     return `
+      <div class="hud">
+        <div class="hud-header">
+          <div class="hud-balance" id="balance">Gold: <strong>${currentMoney}</strong></div>
+          <div class="hud-meta">
+            <div>Asteroid Field ${b + 1} of ${N_BLOCKS}</div>
+            <div>Your balance carries over.</div>
+          </div>
+        </div>
+
+        <div class="hud-grid hud-stack">
+          <div class="hud-card">
             <h3>Asteroid Field ${b + 1} of ${N_BLOCKS}</h3>
             <p>You have now travelled to a new asteroid field.</p>
+            <div class="hud-divider"></div>
             <p>The company has determined new values for scanner reliability, cost, reward and penalty for this asteroid field:</p>
-            <ul>
-              <li>Scanner accuracy: ${Math.round(pNoise * 100)}%</li>
-              <li>Scan cost: ${pScanCost} gold</li>
-              <li>Reward: +${pReward} gold</li>
-              <li>Penalty: −${pPenalty} gold</li>
-
-            </ul>
-            <p>Your balance carries over.</p>
+            <div class="hud-divider"></div>
+            <p>Scanner accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
+            <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
+            <p>Reward: <strong>+${pReward}</strong> gold</p>
+            <p>Penalty: <strong>−${pPenalty}</strong> gold</p>
+            <div class="hud-divider"></div>
             <p>Press <strong>Continue</strong> when ready.</p>
-          `;
+          </div>
+        </div>
+      </div>
+    `;
                 },
-                choices: ['Continue']
+                choices: ['Continue'],
+                // style the Continue button like the HUD controls
+                button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                on_load: function () {
+                    const g = document.getElementById('jspsych-html-button-response-btngroup');
+                    if (g) g.classList.add('hud-actions');
+                }
             });
+
 
             // trials
             for (let t = 0; t < TRIALS_PER_BLOCK; t++) {
@@ -611,9 +784,21 @@ Edit Notes (2025-08-31):
             }
         }
 
-        // Questionnaires- editable 
+        // Transition page before questionnaires
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: `
+                <h3>Questionnaires</h3>
+                <p>The mining trials are complete. The next section asks about your usual thoughts, feelings, and habits in everyday life.</p>
+                <p>Please answer honestly based on your typical experience. There are no right or wrong answers. Each questionnaire will include its own instructions. Follow those as written.</p>
+                <p>Some items refer to topics such as low mood, worry, or sleep. If any question feels uncomfortable, you may pause or stop at any time. This section is not timed, so take the time you need.</p>
+                <p>When you are ready, select Begin Questionnaires.</p>
+  `,
+                choices: ['Begin Questionnaires']
+            });
 
 
+        // Questionnaires Section
 
         // Reusable scales to help with randomization
         const Q_SCALES = {
@@ -660,7 +845,7 @@ Edit Notes (2025-08-31):
                     `Go someplace alone to think about your feeling.`,
                     'Think about how angry you are with yourself.'
                 ],
-                horizontal: false 
+                horizontal: false
             },
             {
                 key: 'pswq',
@@ -685,7 +870,7 @@ Edit Notes (2025-08-31):
                     "I worry all the time.",
                     "I worry about projects until they are all done."
                 ],
-                horizontal: false 
+                horizontal: false
             },
             {
                 key: 'ptq',
@@ -709,7 +894,7 @@ Edit Notes (2025-08-31):
                     'My thoughts are not much help to me',
                     'My thoughts take up all my attention.'
                 ],
-                horizontal: false 
+                horizontal: false
             },
 
             {
@@ -725,7 +910,7 @@ Edit Notes (2025-08-31):
                     "I have little confidence in my memory for words and names.",
                     "My memory can mislead me at times."
                 ],
-                horizontal: false 
+                horizontal: false
             },
 
             {
@@ -741,7 +926,7 @@ Edit Notes (2025-08-31):
                     "I need to worry in order to remain organised.",
                     "Worrying helps me to avoid problems in the future."
                 ],
-                horizontal: false 
+                horizontal: false
             },
 
             {
@@ -757,7 +942,7 @@ Edit Notes (2025-08-31):
                     "I monitor my thoughts.",
                     "I am aware of the way my mind works when I am thinking through a problem."
                 ],
-                horizontal: false 
+                horizontal: false
             },
 
             {
@@ -773,7 +958,7 @@ Edit Notes (2025-08-31):
                     "My worrying could make me go mad.",
                     "My worrying is dangerous for me."
                 ],
-                horizontal: false 
+                horizontal: false
             },
 
             {
@@ -790,7 +975,7 @@ Edit Notes (2025-08-31):
                     "I will be punished for not controlling certain thoughts."
 
                 ],
-                horizontal: false 
+                horizontal: false
             },
         ];
 
@@ -810,7 +995,7 @@ Edit Notes (2025-08-31):
                 "Trouble concentrating on things, such as school work, reading, or watching television.",
                 "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual."
             ],
-            horizontal: false 
+            horizontal: false
         };
 
         // ---- Helper: build a jsPsych survey trial from a set ----
@@ -863,6 +1048,79 @@ Edit Notes (2025-08-31):
         const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
         randomizedSets.forEach(set => timeline.push(makeSurveyBlock(set)));
         timeline.push(makeSurveyBlock(ALWAYS_LAST)); // fixed last
+
+        // ---- Demographics ----
+            const DEMOGRAPHICS_SET = {
+                key: 'demographics',
+                title: 'Demographics',
+                preamble: 'The following questions are optional. You may skip any question by choosing Prefer not to say.',
+                required: false,            // make every item optional
+                horizontal: false,          // vertical layout for clarity
+                items: [
+                    {
+                        prompt: 'Age', name: 'demo_age', optionsKey: null, options: [
+                            '18–24', '25–34', '35–44', '45–54', '55–64', '65+', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Gender identity', name: 'demo_gender', optionsKey: null, options: [
+                            'Woman', 'Man', 'Nonbinary', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Hispanic or Latino/a/x origin', name: 'demo_ethnicity', optionsKey: null, options: [
+                            'Yes', 'No', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Race', name: 'demo_race', optionsKey: null, options: [
+                            'American Indian or Alaska Native',
+                            'Asian',
+                            'Black or African American',
+                            'Native Hawaiian or Other Pacific Islander',
+                            'White',
+                            'Another race',
+                            'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Highest level of education completed', name: 'demo_education', optionsKey: null, options: [
+                            'Some high school',
+                            'High school diploma or GED',
+                            'Some college',
+                            "Bachelor's degree",
+                            'Some graduate school',
+                            'Graduate or professional degree',
+                            'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Primary language', name: 'demo_language', optionsKey: null, options: [
+                            'English', 'Spanish', 'Chinese', 'Other', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'English proficiency', name: 'demo_english', optionsKey: null, options: [
+                            'Native', 'Fluent', 'Conversational', 'Basic', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Current residence', name: 'demo_residence', optionsKey: null, options: [
+                            'United States', 'Outside the United States', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Handedness', name: 'demo_handedness', optionsKey: null, options: [
+                            'Right', 'Left', 'Ambidextrous', 'Prefer not to say'
+                        ]
+                    },
+                    {
+                        prompt: 'Device used for this study', name: 'demo_device', optionsKey: null, options: [
+                            'Desktop or laptop', 'Tablet', 'Mobile phone', 'Prefer not to say'
+                        ]
+                    }
+                ]
+            };
 
 
 
