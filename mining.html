@@ -13,6 +13,13 @@ Date: June 2025
 Notes: Currently a draft ready for overview and further development.
 Changes/Additions: must add questionnaires, must add consent form, likely 
                    needs to load parameters from .csv file. 
+
+Edit Notes (2025-08-31):
+- Implemented #1 Versioning constant and per-row logging.
+- Implemented #2 Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
+- Implemented #3 File naming to include participant ID and ISO timestamp.
+- Implemented #5 Data schema completeness for dig rows (block_index, trial_index, pre_balance, post_balance, cumulative_scan_cost).
+- Per user instruction: DO NOT change any participant-facing wording in instructions/questions/scales; typos remain intentionally unchanged.
 -->
 
 <head>
@@ -37,47 +44,72 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         }
 
         /* 1) Widen the whole slider container and center it */
-  .jspsych-html-slider-response-container {
-    width: 600px !important;    /* 600px is a good starting place, right? */
-    margin: 0 auto;
-  }
+        .jspsych-html-slider-response-container {
+            width: 600px !important;
+            /* 600px is a good starting place, right? */
+            margin: 0 auto;
+        }
 
-  /* 2) Make the <input type="range"> fill that container */
-  .jspsych-html-slider-response-container .jspsych-slider {
-    width: 100% !important;
-  }
+        /* 2) Make the <input type="range"> fill that container */
+        .jspsych-html-slider-response-container .jspsych-slider {
+            width: 100% !important;
+        }
 
-  /* 3) Lay out all the labels in a row */
-  .jspsych-html-slider-response-text {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 10px;
-  }
+        /* 3) Lay out all the labels in a row */
+        .jspsych-html-slider-response-text {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
 
-  /* 4) Box each label so they don’t bleed together */
-  .jspsych-html-slider-response-text span {
-    flex: 1;
-    border: 1px solid #ccc;
-    padding: 6px;
-    margin: 0 4px;
-    text-align: center;
-    background: #f9f9f9;
-    border-radius: 4px;
-    white-space: nowrap;
-    box-sizing: border-box;
-  }
+        /* 4) Box each label so they don’t bleed together */
+        .jspsych-html-slider-response-text span {
+            flex: 1;
+            border: 1px solid #ccc;
+            padding: 6px;
+            margin: 0 4px;
+            text-align: center;
+            background: #f9f9f9;
+            border-radius: 4px;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
 
-  /* Center and space choices for horizontal surveys */
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-opts {
-  display: flex;
-  justify-content: center;   /* center the whole row */
-  gap: 18px;                 /* space between choice columns */
-  padding-left: 0;           /* remove default ul indent */
-  margin: 10px 0;
+        /* Center horizontal survey choices even when there is no <ul> wrapper */
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal { 
+  text-align: center; 
 }
-.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-opts li {
-  list-style: none;          /* hide bullets (some browsers) */
+
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
+  display: inline-flex;         /* keeps radio + label together */
+  align-items: center;          /* vertical align radio and text */
+  margin: 0 18px;               /* match existing spacing */
 }
+
+/* optional: tiny gap between radio and label, non-destructive */
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
+  margin-right: 6px;
+}
+
+/* Force-center horizontal options even without a <ul> wrapper */
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
+  text-align: center !important;            /* center inline children */
+}
+
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal
+  .jspsych-survey-multi-choice-option {
+  display: inline-block !important;          /* sit side-by-side */
+  width: auto !important;                    /* no 100% width blocks */
+  margin: 0 18px !important;                 /* spacing like before */
+  vertical-align: middle !important;
+  text-align: left !important;               /* keep label text left */
+}
+
+.jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal
+  .jspsych-survey-multi-choice-option input {
+  margin-right: 6px !important;              /* small gap radio→label */
+}
+
 
     </style>
 </head>
@@ -85,6 +117,9 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 <body>
     <div id="jspsych-target"></div>
     <script>
+        // ======== (#1) Versioning ========
+        const TASK_VERSION = 'mining_task_2025-08-31_v1';
+
         // Parameters
         const N_BLOCKS = 1; // must match number of blocks in per-block overrides
         const TRIALS_PER_BLOCK = 1;
@@ -95,25 +130,25 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         const PENALTY = 100; // penalty if incorrect
 
         // Optional per-block overrides (fall back to the defaults above)
-            const BLOCK_PARAMS = [
-                { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 }, // Block 1
-                { NOISE: 0.55, SCAN_COST: 5, REWARD: 50, PENALTY: 120 }    // Block 2
-                // Edit: we will add more objects once we decide how many blocks/trials to
-            ];
+        const BLOCK_PARAMS = [
+            { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 }, // Block 1
+            { NOISE: 0.55, SCAN_COST: 5, REWARD: 50, PENALTY: 120 }    // Block 2
+            // Edit: we will add more objects once we decide how many blocks/trials to
+        ];
 
-            // "Current" parameters 
-            let pNoise = NOISE;
-            let pScanCost = SCAN_COST;
-            let pReward = REWARD;
-            let pPenalty = PENALTY;
+        // "Current" parameters 
+        let pNoise = NOISE;
+        let pScanCost = SCAN_COST;
+        let pReward = REWARD;
+        let pPenalty = PENALTY;
 
-            function applyBlockParams(b) {
-                const p = BLOCK_PARAMS[b] || {};
-                pNoise = (p.NOISE !== undefined) ? p.NOISE : NOISE;
-                pScanCost = (p.SCAN_COST !== undefined) ? p.SCAN_COST : SCAN_COST;
-                pReward = (p.REWARD !== undefined) ? p.REWARD : REWARD;
-                pPenalty = (p.PENALTY !== undefined) ? p.PENALTY : PENALTY;
-            }
+        function applyBlockParams(b) {
+            const p = BLOCK_PARAMS[b] || {};
+            pNoise = (p.NOISE !== undefined) ? p.NOISE : NOISE;
+            pScanCost = (p.SCAN_COST !== undefined) ? p.SCAN_COST : SCAN_COST;
+            pReward = (p.REWARD !== undefined) ? p.REWARD : REWARD;
+            pPenalty = (p.PENALTY !== undefined) ? p.PENALTY : PENALTY;
+        }
 
 
         // Starting Counters
@@ -127,8 +162,38 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         let scanCount = 0;      // total scans this trial
 
         // track where we are in blocks/trials
-            let globalBlockIndex = 0;
-            let globalTrialIndex = 0;
+        let globalBlockIndex = 0;
+        let globalTrialIndex = 0;
+
+        // ======== (#2) Participant metadata collection (prompts) ========
+        // Captured before any trials; added to all rows via addProperties.
+        let PARTICIPANT_ID = 'NA';
+        let SESSION_ID = 'NA';
+        let START_TIMESTAMP = new Date().toISOString();
+
+        function collectParticipantMetadata() {
+            try {
+                const pid = window.prompt('Participant ID (required):', '') || 'NA';
+                const sid = window.prompt('Session ID (optional):', '') || 'NA';
+                PARTICIPANT_ID = String(pid).trim() || 'NA';
+                SESSION_ID = String(sid).trim() || 'NA';
+                START_TIMESTAMP = new Date().toISOString();
+                jsPsych.data.addProperties({
+                    task_version: TASK_VERSION,
+                    participant_id: PARTICIPANT_ID,
+                    session_id: SESSION_ID,
+                    start_timestamp: START_TIMESTAMP
+                });
+            } catch (e) {
+                // Fallback if prompts are blocked
+                jsPsych.data.addProperties({
+                    task_version: TASK_VERSION,
+                    participant_id: PARTICIPANT_ID,
+                    session_id: SESSION_ID,
+                    start_timestamp: START_TIMESTAMP
+                });
+            }
+        }
 
         // new asteroid, reset observation and counters
         function resetAsteroid() {
@@ -140,16 +205,16 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         }
 
         // Trial: scan vs dig
-            const scanOrDig = {
-                type: 'html-button-response',
-                stimulus: function () {
-                    const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
-                    const trialsDone = globalTrialIndex + 1;
-                    const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
-                    return `
+        const scanOrDig = {
+            type: 'html-button-response',
+            stimulus: function () {
+                const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
+                const trialsDone = globalTrialIndex + 1;
+                const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
+                return `
   <div id="balance">Gold: <strong>${currentMoney}</strong></div>
-  <div>Asteriod Field ${globalBlockIndex + 1} of ${N_BLOCKS} (Asteroid Fields left: ${blocksLeft})</div>
-  <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Asteriods left: ${trialsLeft})</div>
+  <div>Asteroid Field ${globalBlockIndex + 1} of ${N_BLOCKS} (Asteroid Fields left: ${blocksLeft})</div>
+  <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Asteroids left: ${trialsLeft})</div>
   <p>Current scanner observation: <strong>${scanMsg || 'None'}</strong></p>
   <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
   <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
@@ -160,52 +225,77 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
  
         `;
-                },
-                choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
-                on_finish: function (data) {
-                    const choice = parseInt(data.response);
-                    if (choice === 0) {
-                        // -------- SCAN --------
-                        data.scan = true;
-                        currentMoney -= pScanCost;
-                        // noisy observation
-                        const obs = (Math.random() < pNoise)
-                            ? trueState
-                            : (trueState === 'surface' ? 'core' : 'surface');
-                        scanMsg = (obs === 'surface')
-                            ? 'Scanners suggest there is gold at the surface'
-                            : 'Scanners suggest there is gold in the core';
-                        // update counters
-                        if (obs === 'surface') {
-                            scanSurfaceCount++;
-                        } else {
-                            scanCoreCount++;
-                        }
-                        scanCount++;
+            },
+            choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
+            on_finish: function (data) {
+                const choice = parseInt(data.response);
+
+                // ======== (#5) Capture indices for this action row ========
+                data.block_index = globalBlockIndex;
+                data.trial_index = globalTrialIndex;
+
+                if (choice === 0) {
+                    // -------- SCAN --------
+                    data.scan = true;
+                    // track pre/post for completeness (scan row)
+                    const pre_balance_scan = currentMoney;
+                    currentMoney -= pScanCost;
+                    const post_balance_scan = currentMoney;
+                    data.pre_balance = pre_balance_scan;
+                    data.post_balance = post_balance_scan;
+
+                    // noisy observation
+                    const obs = (Math.random() < pNoise)
+                        ? trueState
+                        : (trueState === 'surface' ? 'core' : 'surface');
+                    scanMsg = (obs === 'surface')
+                        ? 'Scanners suggest there is gold at the surface'
+                        : 'Scanners suggest there is gold in the core';
+                    // update counters
+                    if (obs === 'surface') {
+                        scanSurfaceCount++;
                     } else {
-                        // -------- DIG --------
-                        data.scan = false;
-                        const dug = (choice === 1) ? 'core' : 'surface';
-                        const correct = (dug === trueState);
-                        // imperatively update balance with per-block values
-                        if (correct) {
-                            currentMoney += pReward;
-                        } else {
-                            currentMoney -= pPenalty;
-                        }
-                        data.correct = correct;
-                        data.delta = correct ? pReward : -pPenalty;
-                        data.dug = dug;
-                        data.scanCount = scanCount;  // total scans this trial
+                        scanCoreCount++;
                     }
-                    // record scan counters every time
-                    data.scanCount = scanCount;
+                    scanCount++;
+                } else {
+                    // -------- DIG --------
+                    data.scan = false;
+
+                    // ======== (#5) pre/post balance and cumulative scan cost on dig row ========
+                    const pre_balance = currentMoney; // before applying reward/penalty
+                    const dug = (choice === 1) ? 'core' : 'surface';
+                    const correct = (dug === trueState);
+
+                    if (correct) {
+                        currentMoney += pReward;
+                    } else {
+                        currentMoney -= pPenalty;
+                    }
+
+                    const post_balance = currentMoney;
+                    const cumulative_scan_cost = scanCount * pScanCost;
+
+                    data.correct = correct;
+                    data.delta = correct ? pReward : -pPenalty;
+                    data.dug = dug;
+                    data.scanCount = scanCount;  // total scans this trial
                     data.scanCoreCount = scanCoreCount;
                     data.scanSurfaceCount = scanSurfaceCount;
-                    // rt is already logged by html-button-response
-                }
 
-            };
+                    // add completeness fields
+                    data.pre_balance = pre_balance;
+                    data.post_balance = post_balance;
+                    data.cumulative_scan_cost = cumulative_scan_cost;
+                }
+                // record scan counters every time
+                data.scanCount = scanCount;
+                data.scanCoreCount = scanCoreCount;
+                data.scanSurfaceCount = scanSurfaceCount;
+                // rt is already logged by html-button-response
+            }
+
+        };
 
 
         // loop until they choose to dig, allows infinite scanning
@@ -242,149 +332,164 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
         // Confidence slider after each dig
         const confidenceTrial = {
-                type: 'html-slider-response',
-                // Fill in stimulus & labels in on_start
-                stimulus: '',
-                labels: [],
-                min: 0,
-                max: 100,
-                start: 50,
-                step: 1,
-                require_movement: true,
-                data: { trial_part: 'confidence' },
+            type: 'html-slider-response',
+            // Fill in stimulus & labels in on_start
+            stimulus: '',
+            labels: [],
+            min: 0,
+            max: 100,
+            start: 50,
+            step: 1,
+            require_movement: true,
+            data: { trial_part: 'confidence' },
 
-                on_start: function (trial) {
-                    // grab all data, reverse, and find the most recent dig trial
-                    const all = jsPsych.data.get().values();
-                    const digData = all.slice().reverse().find(t => t.dug !== undefined);
-                    const choice = digData.dug; // either "core" or "surface"
+            on_start: function (trial) {
+                // grab all data, reverse, and find the most recent dig trial
+                const all = jsPsych.data.get().values();
+                const digData = all.slice().reverse().find(t => t.dug !== undefined);
+                const choice = digData.dug; // either "core" or "surface"
 
-                    // set the question text
-                    trial.stimulus = `<p>How confident are you that the gold is at <strong>${choice}</strong>?</p>`;
+                // set the question text
+                trial.stimulus = `<p>How confident are you that the gold is at <strong>${choice}</strong>?</p>`;
 
-                    // set the endpoint and midpoint labels
-                    trial.labels = [
-                        `Not confident that gold is at ${choice}`,
-                        `Moderately confident that gold is at ${choice}`, // may need workshoping
-                        `Very confident that gold is at ${choice}`
-                    ];
-                },
+                // set the endpoint and midpoint labels
+                trial.labels = [
+                    `Not confident that gold is at ${choice}`,
+                    `Moderately confident that gold is at ${choice}`, // may need workshoping
+                    `Very confident that gold is at ${choice}`
+                ];
+            },
 
-                on_finish: function (data) {
-                    data.confidence = data.response;
-                }
-            };
+            on_finish: function (data) {
+                data.confidence = data.response;
+                // ======== (#5) also tag indices on confidence row for easier joins later ========
+                data.block_index = globalBlockIndex;
+                data.trial_index = globalTrialIndex;
+            }
+        };
 
 
         // Comprehension Check
-            // running tallies saved across attempts and will be saved in csv output
-            const quizStats = {
-                stay_put: { correct: 0, incorrect: 0 },
-                noise_def: { correct: 0, incorrect: 0 },
-                scan_tradeoff: { correct: 0, incorrect: 0 }
+        // running tallies saved across attempts and will be saved in csv output
+        const quizStats = {
+            stay_put: { correct: 0, incorrect: 0 },
+            noise_def: { correct: 0, incorrect: 0 },
+            scan_tradeoff: { correct: 0, incorrect: 0 }
+        };
+
+        // helper function: creates a single-question loop with feedback and logging for csv
+        function makeQuizQuestion({ qid, promptHTML, choices, correctIndex, feedbackHTML }) {
+            let attempts = 0; // attempts for this question (resets if page reloads)
+
+            const qTrial = {
+                type: 'html-button-response',
+                stimulus: promptHTML,
+                choices: choices,
+                data: { trial_part: 'instr', qid: qid },
+                on_finish: function (d) {
+                    attempts += 1;
+                    d.attempt = attempts;
+                    d.correct_index = correctIndex;
+                    d.is_correct = (d.response === correctIndex);
+
+                    // update totals
+                    if (d.is_correct) quizStats[qid].correct += 1;
+                    else quizStats[qid].incorrect += 1;
+
+                    // copy running totals into this row so they get added to the CSV
+                    d.correct_total = quizStats[qid].correct;
+                    d.incorrect_total = quizStats[qid].incorrect;
+
+                    // ======== (#5) indices on instruction rows as well ========
+                    d.block_index = globalBlockIndex;
+                    d.trial_index = globalTrialIndex;
+                }
             };
 
-            // helper function: creates a single-question loop with feedback and logging for csv
-            function makeQuizQuestion({ qid, promptHTML, choices, correctIndex, feedbackHTML }) {
-                let attempts = 0; // attempts for this question (resets if page reloads)
-
-                const qTrial = {
-                    type: 'html-button-response',
-                    stimulus: promptHTML,
-                    choices: choices,
-                    data: { trial_part: 'instr', qid: qid },
-                    on_finish: function (d) {
-                        attempts += 1;
-                        d.attempt = attempts;
-                        d.correct_index = correctIndex;
-                        d.is_correct = (d.response === correctIndex);
-
-                        // update totals
-                        if (d.is_correct) quizStats[qid].correct += 1;
-                        else quizStats[qid].incorrect += 1;
-
-                        // copy running totals into this row so they get added to the CSV
-                        d.correct_total = quizStats[qid].correct;
-                        d.incorrect_total = quizStats[qid].incorrect;
-                    }
-                };
-
-                const feedbackTrial = {
-                    type: 'html-button-response',
-                    choices: function () {
-                        const last = jsPsych.data.get().last(1).values()[0];
-                        return last.is_correct ? [] : ['Try again'];
-                    },
-                    stimulus: function () {
-                        const last = jsPsych.data.get().last(1).values()[0]; // the question we just answered
-                        if (last.is_correct) {
-                            return `<p>✅ Correct.</p>`;
-                        } else {
-                            return `
+            const feedbackTrial = {
+                type: 'html-button-response',
+                choices: function () {
+                    const last = jsPsych.data.get().last(1).values()[0];
+                    return last.is_correct ? [] : ['Try again'];
+                },
+                stimulus: function () {
+                    const last = jsPsych.data.get().last(1).values()[0]; // the question we just answered
+                    if (last.is_correct) {
+                        return `<p>✅ Correct.</p>`;
+                    } else {
+                        return `
                         <p>❌ Incorrect.</p>
                         <div style="margin-top:8px">${feedbackHTML}</div>
                         <p style="margin-top:8px">Please select the correct answer to continue.</p>
                         `;
-                        }
-                    },
-                    trial_duration: function () {
-                        const last = jsPsych.data.get().last(1).values()[0];
-                        return last.is_correct ? 900 : null; // auto-advance if correct; else wait for button
-                    },
-                    data: { trial_part: 'instr_feedback', qid: qid }
-                };
-
-                // repeat forever until the questions get answered correctly
-                return {
-                    timeline: [qTrial, feedbackTrial],
-                    loop_function: function (loopData) {
-                        // the first item in this mini-timeline is the question trial we just ran
-                        const q = loopData.values().find(t => t.trial_part === 'instr' && t.qid === qid);
-                        return !q.is_correct; // true → repeat; false → move on
                     }
-                };
-            }
+                },
+                trial_duration: function () {
+                    const last = jsPsych.data.get().last(1).values()[0];
+                    return last.is_correct ? 900 : null; // auto-advance if correct; else wait for button
+                },
+                data: {
+                    trial_part: 'instr_feedback', qid: qid,
+                    // ======== (#5) indices on instruction feedback rows ========
+                    block_index: function () { return globalBlockIndex; },
+                    trial_index: function () { return globalTrialIndex; }
+                }
+            };
 
-            // Q1: which action keeps you on the same asteroid?
-            const quizQ1 = makeQuizQuestion({
-                qid: 'stay_put',
-                promptHTML: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gather information about where to dig?</p>`,
-                choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
-                correctIndex: 0,
-                feedbackHTML: `<p>Incorrect. Scanning both gives you information about the asteroid and does <em>not</em> end the trial. It provides some noisy information at a cost set by the company. You can <em>scan</em> repeatedly on the same asteroid.</p>`
-            });
+            // repeat forever until the questions get answered correctly
+            return {
+                timeline: [qTrial, feedbackTrial],
+                loop_function: function (loopData) {
+                    // the first item in this mini-timeline is the question trial we just ran
+                    const q = loopData.values().find(t => t.trial_part === 'instr' && t.qid === qid);
+                    return !q.is_correct; // true → repeat; false → move on
+                }
+            };
+        }
 
-            // Q2: meaning of “scanner noise 70%”
-            const quizQ2 = makeQuizQuestion({
-                qid: 'noise_def',
-                promptHTML: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner noise. Suppose scanner noise is 70%. What does this mean?</p>`,
-                choices: [
-                    'I can trust that the scanner is giving me the right answer most of the time.',
-                    'The scanner makes a noise at 70% volume.',
-                    'The scanner is only giving the correct location 70% of the time.'
-                ],
-                correctIndex: 2,
-                feedbackHTML: `<p>Incorrect. The “70%” means the scanner’s message matches the true gold location 70% of the time.</p>`
-            });
+        // Q1: which action keeps you on the same asteroid?
+        const quizQ1 = makeQuizQuestion({
+            qid: 'stay_put',
+            promptHTML: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gather information about where to dig?</p>`,
+            choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
+            correctIndex: 0,
+            feedbackHTML: `<p>Incorrect. Scanning both gives you information about the asteroid and does <em>not</em> end the trial. It provides some noisy information at a cost set by the company. You can <em>scan</em> repeatedly on the same asteroid.</p>`
+        });
 
-            // Q3: scanning trade-off
-            const quizQ3 = makeQuizQuestion({
-                qid: 'scan_tradeoff',
-                promptHTML: `<p><strong>3.</strong> Suppose you got three "surface" readings in a row and no "core" readings. Should you dig at the surface?</p>`,
-                choices: [
-                    'Yes, that is a strong indication of gold on the surface.',
-                    'No, the scanner is unreliable, so you should ignore it.',
-                    'Maybe. It depends on the scanner reliability, the cost of a scan, and the company reward and punishment.'
-                ],
-                correctIndex: 2,
-                feedbackHTML: `<p>Incorrect. The right time to dig depends on scanner accuracy, scan cost, and your reward/penalty structure. You should not just rely on last few scanner readings.</p>`
-            });
+        // Q2: meaning of “scanner noise 70%”
+        const quizQ2 = makeQuizQuestion({
+            qid: 'noise_def',
+            promptHTML: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner noise. Suppose scanner noise is 70%. What does this mean?</p>`,
+            choices: [
+                'I can trust that the scanner is giving me the right answer most of the time.',
+                'The scanner makes a noise at 70% volume.',
+                'The scanner is only giving the correct location 70% of the time.'
+            ],
+            correctIndex: 2,
+            feedbackHTML: `<p>Incorrect. The “70%” means the scanner’s message matches the true gold location 70% of the time.</p>`
+        });
+
+        // Q3: scanning trade-off
+        const quizQ3 = makeQuizQuestion({
+            qid: 'scan_tradeoff',
+            promptHTML: `<p><strong>3.</strong> Suppose you got three "surface" readings in a row and no "core" readings. Should you dig at the surface?</p>`,
+            choices: [
+                'Yes, that is a strong indication of gold on the surface.',
+                'No, the scanner is unreliable, so you should ignore it.',
+                'Maybe. It depends on the scanner reliability, the cost of a scan, and the company reward and punishment.'
+            ],
+            correctIndex: 2,
+            feedbackHTML: `<p>Incorrect. The right time to dig depends on scanner accuracy, scan cost, and your reward/penalty structure. You should not just rely on last few scanner readings.</p>`
+        });
 
 
 
         // Build the experiment timeline 
         const timeline = [];
-        
+
+        // ======== (#2) Collect metadata before anything else runs ========
+        timeline.push({ type: 'call-function', func: collectParticipantMetadata });
+
         //Instructions now broken into multiple pages due to length. 
 
         // Instructions 1 
@@ -392,7 +497,7 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             type: 'html-button-response',
             stimulus: `
         <h2>Mining Task (Draft instructions)</h2>
-        <p>In this experiment, your will pretend to work for an asteroid mining company in the year 3000.</p>
+        <p>In this experiment, you will pretend to work for an asteroid mining company in the year 3000.</p>
         <p>The company has sent mining drones all over the galaxy. Your job is to help us collect gold from asteroids.</p>
         <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
         <p>But we don't know whether gold is near the surface or in the core.</p>
@@ -401,9 +506,9 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         });
 
         // Instructions 2
-            timeline.push({
-                type: 'html-button-response',
-                stimulus: `
+        timeline.push({
+            type: 'html-button-response',
+            stimulus: `
         <p>Your task is to decide whether to dig near the surface or into the core.</p>
         <p>If you dig where the gold is located, then you will get a reward as compensation from the company. However, the asteroids are <strong>fragile.</strong></p> 
         <p>So, once you dig, it will break apart and any remaining gold becomes unsalvageable.</p>  
@@ -411,54 +516,54 @@ Changes/Additions: must add questionnaires, must add consent form, likely
         <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are <strong>unreliable.</strong></p> 
         <p>You can scan each asteroid as many times as you want. But, scanning is costly and so, the company charges you given amount per scan.</p>
         `,
-                choices: ['Next']
-            });
+            choices: ['Next']
+        });
 
-          // Instructions 3
-            timeline.push({
-                type: 'html-button-response',
-                stimulus: `  
+        // Instructions 3
+        timeline.push({
+            type: 'html-button-response',
+            stimulus: `  
         <p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
         <p>When you land on an asteroid, you have a options about what to do:</p>
-        <p>🔍 <strong>Scan</strong> (cost depends on the specific asteriod field): you get noisy info about the location of the gold.</p>
+        <p>🔍 <strong>Scan</strong> (cost depends on the specific asteroid field): you get noisy info about the location of the gold.</p>
         <p>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</p>
         <p>If you select the correct location to dig: You win gold.</p> 
         <p>If you select the incorrect location to dig: You lose gold.</p>
         <p>Scan as many times as you like to gain information about the gold location.</p> 
         `,
-                choices: ['Next']
-            });
+            choices: ['Next']
+        });
 
         // Instructions 4
-            timeline.push({
-                type: 'html-button-response',
-                stimulus: `
+        timeline.push({
+            type: 'html-button-response',
+            stimulus: `
         <p>You only get to pick a dig location once for each asteroid. So please make sure you're ready to dig in which ever location before doing so.</p>
         <p>The scanner's reliability, cost of using the scanner, reward, and punishment are set by the company for each particular asteroid. You will be told their amounts each time.</p>
         <p>Your compensation for the experiment partially depends on your <strong>total gold balance.</strong></p>
         
         `,
-                choices: ['Next']
-            });
+            choices: ['Next']
+        });
 
         // Instructions 5
-            timeline.push({
-                type: 'html-button-response',
-                stimulus: `
-                <p>Before we send you to the first asteriod field, we will check your understanding of the actions available and your role in the mission.</p>
+        timeline.push({
+            type: 'html-button-response',
+            stimulus: `
+                <p>Before we send you to the first asteroid field, we will check your understanding of the actions available and your role in the mission.</p>
                 <p>Press <strong>Start</strong> to begin.</p>
       `,
             choices: ['Start']
         });
 
         // comprehension check – each question loops until correct - Joe's preference
-            timeline.push(quizQ1, quizQ2, quizQ3);
+        timeline.push(quizQ1, quizQ2, quizQ3);
 
 
         // initialize first asteroid
         timeline.push({ type: 'call-function', func: resetAsteroid });
 
-       // blocks
+        // blocks
         for (let b = 0; b < N_BLOCKS; b++) {
 
             // set current block index so the main trial screen shows the right block number
@@ -506,236 +611,260 @@ Changes/Additions: must add questionnaires, must add consent form, likely
 
         // Questionnaires- editable 
 
-    
-
-            // Reusable scales to help with randomization
-            const Q_SCALES = {
-                    often4: ['Never', 'Rarely', 'Sometimes', 'Often'],
-                    agree5: ['Strongly disagree', 'Disagree', 'Neither agree nor disagree', 'Agree', 'Strongly agree'],
-                    agree4: ['Do not agree', 'Agree slightly', 'Agree moderately', 'Agree very much'],   
-                    often5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Almost always'],
-                    typical5: ['Not at all typical of me', 'Not very typical of me', 'Somewhat typical of me', 'Fairly typical of me', 'Very typical of me'],
-                    freq5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'],
-                    days4:['Not at all', 'Several days', 'More than half the days', 'Nearly every day']
-                };
-
-                const DEFAULT_SCALE = Q_SCALES.agree5;  // defualt scale set as agree5 
 
 
-            // Question sets 
-            // Items may be strings (use set-level options) or objects with their own overrides
-            const Q_SETS = [
-                {
-                    key: 'rrs',
-                    title: 'Ruminative Responses Scale',
-                    preamble: 'Look at the scale below and please tell us if you never, sometimes, often, or always think or do each one when you feel down, sad, or depressed. Please indicate what you generally do, not what you think you should do.',
-                    optionsKey: 'often4',       // 4-point
-                    items: [
-                        `Think about how alone you feel.`,
-                        `Think "I won't be able to do my job if I don't snap out of this."`,
-                        `Think about your feelings of fatigue and achiness.`,
-                        `Think about how hard it is to concentrate.`,
-                        `Think "What am I doing to deserve this?"`,
-                        `Think about how passive and unmotivated you feel.`,
-                        `Analyze recent events to try to understand why you are depressed.`,
-                        `Think about how you don't seem to feel anything anymore.`,
-                        `Think "Why can't I get going?"`,
-                        `Think "Why do I always react this way?"`,
-                        `Go away by yourself and think about why you feel this way.`,
-                        `Write down what you are thinking and analyze it.`,
-                        `Think about a recent situation, wishing it had gone better.`,
-                        `Think "I won't be able to concentrate if I keep feeling this way."`,
-                        `Think "Why do I have problems other people don't have?"`,
-                        `Think "Why can't I handle things better?"`,
-                        `Think about how sad you feel.`,
-                        `Think about all your shortcomings, failings, faults, mistakes.`,
-                        `Think about how you don't feel up to doing anything.`,
-                        `Analyze your personality to try to understand why you are depressed.`,
-                        `Go someplace alone to think about your feeling.`,
-                        'Think about how angry you are with yourself.'
-                    ]
-                },
-                {
-                    key: 'pswq',
-                    title: 'Penn State Worry Questionnaire',
-                    preamble: 'Think about how typical each statement is for you.',
-                    optionsKey: 'typical5',       // 5-point
-                    items: [
-                        "If I do not have enough time to do everything, I do not worry about it.",
-                        "My worries overwhelm me.",
-                        "I do not tend to worry about things.",
-                        "Many situations make me worry.",
-                        "I know I should not worry about things, but I just cannot help it.",
-                        "When I am under pressure I worry a lot.",
-                        "I am always worrying about something.",
-                        "I find it easy to dismiss worrisome thoughts.",
-                        "As soon as I finish one task, I start to worry about everything else I have to do.",
-                        "I never worry about anything.",
-                        "When there is nothing more I can do about a concern, I do not worry about it any more.",
-                        "I have been a worrier all my life.",
-                        "I notice that I have been worrying about things.",
-                        "Once I start worrying, I cannot stop.",
-                        "I worry all the time.",
-                        "I worry about projects until they are all done."
-                    ]
-                },
-                {
-                    key: 'ptq',
-                    title: 'Perseverative Thinking Questionnaire',
-                    preamble: ' In this questionnaire, you will be asked to describe how you typically think about negative experiences or problems. Please read the following statements and rate the extent to which they apply to you when you think about negative experiences or problems.',
-                    optionsKey: 'often5',
-                    items: [
-                        ' The same thoughts keep going through my mind',
-                        ' Thoughts intrude into my mind.',
-                        'I can’t stop dwelling on my thoughts.',
-                        'I think about many problems without solving any of them.',
-                        'I can’t do anything else while thinking about my problems',
-                        'My thoughts repeat themselves.',
-                        'Thoughts come to my mind without me wanting them to.',
-                        'I get stuck on certain issues and can’t move on',
-                        'I keep asking myself questions without finding an answer.',
-                        'My thoughts prevent me from focusing on other things.',
-                        'I keep thinking about the same issue all the time.',
-                        'Thoughts just pop into my mind.',
-                        'I feel driven to continue dwelling on the same issue.',
-                        ' My thoughts are not much help to me',
-                        ' My thoughts take up all my attention.'
-                    ]
-                },
-                {
-                    key: 'MCQ30-F1',
-                    title: 'Cognitive Confidence',
-                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
-                    optionsKey: 'agree4',
-                    items: [
-                        "I do not trust my memory.",
-                        "I have a poor memory.",
-                        "I have little confidence in my memory for actions.",
-                        "I have little confidence in my memory for places.",
-                        "I have little confidence in my memory for words and names.",
-                        "My memory can mislead me at times."
-                    ]
-                },
+        // Reusable scales to help with randomization
+        const Q_SCALES = {
+            often4: ['Never', 'Rarely', 'Sometimes', 'Often'],
+            agree5: ['Strongly disagree', 'Disagree', 'Neither agree nor disagree', 'Agree', 'Strongly agree'],
+            agree4: ['Do not agree', 'Agree slightly', 'Agree moderately', 'Agree very much'],
+            often5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Almost always'],
+            typical5: ['Not at all typical of me', 'Not very typical of me', 'Somewhat typical of me', 'Fairly typical of me', 'Very typical of me'],
+            freq5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'],
+            days4: ['Not at all', 'Several days', 'More than half the days', 'Nearly every day']
+        };
 
-                 {
-                    key: 'MCQ30-F3',
-                    title: 'Cognitive Self-Consciousness',
-                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
-                    optionsKey: 'agree4',
-                    items: [
-                        "I am constantly aware of my thinking.",
-                        "I pay close attention to the way my mind works.",
-                        "I think a lot about my thoughts.",
-                        "I constantly examine my thoughts.",
-                        "I monitor my thoughts.",
-                        "I am aware of the way my mind works when I am thinking through a problem."
-                    ]
-                },
+        const DEFAULT_SCALE = Q_SCALES.agree5;  // defualt scale set as agree5 
 
-                  {
-                    key: 'MCQ30-F4',
-                    title: 'Uncontrollability',
-                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
-                    optionsKey: 'agree4',
-                    items: [
-                        "My worrying thoughts persist, no matter how I try to stop them.",
-                        "When I start worrying I cannot stop.",
-                        "I could make myself sick with worrying.",
-                        "I cannot ignore my worrying thoughts.",
-                        "My worrying could make me go mad.",
-                        "My worrying is dangerous for me."
-                    ]
-                },
 
-                   {
-                    key: 'MCQ30-F5',
-                    title: 'Need to Control',
-                    preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
-                    optionsKey: 'agree4',
-                    items: [
-                         "If I could not control my thoughts, I would not be able to function.",
-                        "Not being able to control my thoughts is a sign of weakness.",
-                        "I should be in control of my thoughts all of the time.",
-                        "It is bad to think certain thoughts.",
-                        "If I did not control a worrying thought and then it happened, it would be my fault.",
-                        "I will be punished for not controlling certain thoughts."
-
-                    ]
-                },
-            ];
-
-            // ---- PHQ-8 always-last questionnaire (not randomized) ----
-            const ALWAYS_LAST = {
-                key: 'PHQ-8',
-                title: 'Patient Health Questionnaire',
-                preamble: 'Over the last 2 weeks, how often have  you been bothered by any of the following problems?:',
-                optionsKey: 'days4',
+        // Question sets 
+        const Q_SETS = [
+            {
+                key: 'rrs',
+                title: 'Ruminative Responses Scale',
+                preamble: 'Look at the scale below and please tell us if you never, sometimes, often, or always think or do each one when you feel down, sad, or depressed. Please indicate what you generally do, not what you think you should do.',
+                optionsKey: 'often4',
                 items: [
-                    "Little interest or pleasure in doing things.",
-                    "Feeling down, depressed, irritable, or hopeless.",
-                    "Trouble falling or staying asleep, or sleeping too much.",
-                    "Feeling tired or having little energy.",
-                    "Poor appetite or overeating.",
-                    "Feeling bad about yourself — or that you are a failure or have let yourself or your family down.",
-                    "Trouble concentrating on things, such as school work, reading, or watching television.",
-                    "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual."
-                ]
-            };
+                    `Think about how alone you feel.`,
+                    `Think "I won't be able to do my job if I don't snap out of this."`,
+                    `Think about your feelings of fatigue and achiness.`,
+                    `Think about how hard it is to concentrate.`,
+                    `Think "What am I doing to deserve this?"`,
+                    `Think about how passive and unmotivated you feel.`,
+                    `Analyze recent events to try to understand why you are depressed.`,
+                    `Think about how you don't seem to feel anything anymore.`,
+                    `Think "Why can't I get going?"`,
+                    `Think "Why do I always react this way?"`,
+                    `Go away by yourself and think about why you feel this way.`,
+                    `Write down what you are thinking and analyze it.`,
+                    `Think about a recent situation, wishing it had gone better.`,
+                    `Think "I won't be able to concentrate if I keep feeling this way."`,
+                    `Think "Why do I have problems other people don't have?"`,
+                    `Think "Why can't I handle things better?"`,
+                    `Think about how sad you feel.`,
+                    `Think about all your shortcomings, failings, faults, mistakes.`,
+                    `Think about how you don't feel up to doing anything.`,
+                    `Analyze your personality to try to understand why you are depressed.`,
+                    `Go someplace alone to think about your feeling.`,
+                    'Think about how angry you are with yourself.'
+                ],
+                horizontal: false 
+            },
+            {
+                key: 'pswq',
+                title: 'Penn State Worry Questionnaire',
+                preamble: 'Think about how typical each statement is for you.',
+                optionsKey: 'typical5',
+                items: [
+                    "If I do not have enough time to do everything, I do not worry about it.",
+                    "My worries overwhelm me.",
+                    "I do not tend to worry about things.",
+                    "Many situations make me worry.",
+                    "I know I should not worry about things, but I just cannot help it.",
+                    "When I am under pressure I worry a lot.",
+                    "I am always worrying about something.",
+                    "I find it easy to dismiss worrisome thoughts.",
+                    "As soon as I finish one task, I start to worry about everything else I have to do.",
+                    "I never worry about anything.",
+                    "When there is nothing more I can do about a concern, I do not worry about it any more.",
+                    "I have been a worrier all my life.",
+                    "I notice that I have been worrying about things.",
+                    "Once I start worrying, I cannot stop.",
+                    "I worry all the time.",
+                    "I worry about projects until they are all done."
+                ],
+                horizontal: false 
+            },
+            {
+                key: 'ptq',
+                title: 'Perseverative Thinking Questionnaire',
+                preamble: 'In this questionnaire, you will be asked to describe how you typically think about negative experiences or problems. Please read the following statements and rate the extent to which they apply to you when you think about negative experiences or problems.',
+                optionsKey: 'often5',
+                items: [
+                    'The same thoughts keep going through my mind',
+                    'Thoughts intrude into my mind.',
+                    'I cannott stop dwelling on my thoughts.',
+                    'I think about many problems without solving any of them.',
+                    'I cannot do anything else while thinking about my problems',
+                    'My thoughts repeat themselves.',
+                    'Thoughts come to my mind without me wanting them to.',
+                    'I get stuck on certain issues and cannot move on',
+                    'I keep asking myself questions without finding an answer.',
+                    'My thoughts prevent me from focusing on other things.',
+                    'I keep thinking about the same issue all the time.',
+                    'Thoughts just pop into my mind.',
+                    'I feel driven to continue dwelling on the same issue.',
+                    'My thoughts are not much help to me',
+                    'My thoughts take up all my attention.'
+                ],
+                horizontal: false 
+            },
 
-            // ---- Helper: build a jsPsych survey trial from a set ----
-            function makeSurveyBlock(set) {
-                const setOptions =
-                    set.options ||
-                    (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
+            {
+                key: 'MCQ30-F1',
+                title: 'Cognitive Confidence',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "I do not trust my memory.",
+                    "I have a poor memory.",
+                    "I have little confidence in my memory for actions.",
+                    "I have little confidence in my memory for places.",
+                    "I have little confidence in my memory for words and names.",
+                    "My memory can mislead me at times."
+                ],
+                horizontal: false 
+            },
+
+            {
+                key: 'MCQ30-F2',
+                title: 'Positive Beliefs',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "Worrying helps me to get things sorted out in my mind.",
+                    "Worrying helps me cope.",
+                    "I need to worry in order to work well.",
+                    "Worrying helps me to solve problems.",
+                    "I need to worry in order to remain organised.",
+                    "Worrying helps me to avoid problems in the future."
+                ],
+                horizontal: false 
+            },
+
+            {
+                key: 'MCQ30-F3',
+                title: 'Cognitive Self-Consciousness',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "I am constantly aware of my thinking.",
+                    "I pay close attention to the way my mind works.",
+                    "I think a lot about my thoughts.",
+                    "I constantly examine my thoughts.",
+                    "I monitor my thoughts.",
+                    "I am aware of the way my mind works when I am thinking through a problem."
+                ],
+                horizontal: false 
+            },
+
+            {
+                key: 'MCQ30-F4',
+                title: 'Uncontrollability',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "My worrying thoughts persist, no matter how I try to stop them.",
+                    "When I start worrying I cannot stop.",
+                    "I could make myself sick with worrying.",
+                    "I cannot ignore my worrying thoughts.",
+                    "My worrying could make me go mad.",
+                    "My worrying is dangerous for me."
+                ],
+                horizontal: false 
+            },
+
+            {
+                key: 'MCQ30-F5',
+                title: 'Need to Control',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "If I could not control my thoughts, I would not be able to function.",
+                    "Not being able to control my thoughts is a sign of weakness.",
+                    "I should be in control of my thoughts all of the time.",
+                    "It is bad to think certain thoughts.",
+                    "If I did not control a worrying thought and then it happened, it would be my fault.",
+                    "I will be punished for not controlling certain thoughts."
+
+                ],
+                horizontal: false 
+            },
+        ];
+
+        // ---- PHQ-8 always-last questionnaire (not randomized) ----
+        const ALWAYS_LAST = {
+            key: 'PHQ-8',
+            title: 'Patient Health Questionnaire',
+            preamble: 'Over the last 2 weeks, how often have  you been bothered by any of the following problems?:',
+            optionsKey: 'days4',
+            items: [
+                "Little interest or pleasure in doing things.",
+                "Feeling down, depressed, irritable, or hopeless.",
+                "Trouble falling or staying asleep, or sleeping too much.",
+                "Feeling tired or having little energy.",
+                "Poor appetite or overeating.",
+                "Feeling bad about yourself — or that you are a failure or have let yourself or your family down.",
+                "Trouble concentrating on things, such as school work, reading, or watching television.",
+                "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual."
+            ],
+            horizontal: false 
+        };
+
+        // ---- Helper: build a jsPsych survey trial from a set ----
+        function makeSurveyBlock(set) {
+            const setOptions =
+                set.options ||
+                (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
+                DEFAULT_SCALE;
+
+            const questions = set.items.map((it, i) => {
+                // Allow strings or rich objects per item
+                const item = (typeof it === 'string') ? { prompt: it } : it;
+
+                // Decide options for this item (item overrides > set options > default)
+                const itemOptions =
+                    item.options ||
+                    (item.optionsKey ? Q_SCALES[item.optionsKey] : null) ||
+                    setOptions ||
                     DEFAULT_SCALE;
 
-                const questions = set.items.map((it, i) => {
-                    // Allow strings or rich objects per item
-                    const item = (typeof it === 'string') ? { prompt: it } : it;
+                // Allow per-item required/horizontal overrides; else fall back to set or defaults
+                const required =
+                    (typeof item.required === 'boolean') ? item.required :
+                        (typeof set.required === 'boolean') ? set.required : true;
 
-                    // Decide options for this item (item overrides > set options > default)
-                    const itemOptions =
-                        item.options ||
-                        (item.optionsKey ? Q_SCALES[item.optionsKey] : null) ||
-                        setOptions ||
-                        DEFAULT_SCALE;
-
-                    // Allow per-item required/horizontal overrides; else fall back to set or defaults
-                    const required =
-                        (typeof item.required === 'boolean') ? item.required :
-                            (typeof set.required === 'boolean') ? set.required : true;
-
-                    const horizontal =
-                        (typeof item.horizontal === 'boolean') ? item.horizontal :
-                            (typeof set.horizontal === 'boolean') ? set.horizontal : true;
-
-                    return {
-                        prompt: item.prompt,
-                        name: `${set.key}_${i + 1}`,   // column name in CSV
-                        options: itemOptions,
-                        required: required,
-                        horizontal: horizontal
-                    };
-                });
+                const horizontal =
+                    (typeof item.horizontal === 'boolean') ? item.horizontal :
+                        (typeof set.horizontal === 'boolean') ? set.horizontal : true;
 
                 return {
-                    type: 'survey-multi-choice',
-                    preamble: `<h3>${set.title}</h3>${set.preamble ? `<p>${set.preamble}</p>` : ''}`,
-                    questions: questions,
-                    randomize_question_order: true,  // shuffle items within this questionnaire
-                    button_label: 'Next',
-                    data: { questionnaire: set.key }
+                    prompt: item.prompt,
+                    name: `${set.key}_${i + 1}`,   // column name in CSV
+                    options: itemOptions,
+                    required: required,
+                    horizontal: horizontal
                 };
-            }
+            });
 
-            // ---- Add questionnaires to the timeline ----
-            const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
-            randomizedSets.forEach(set => timeline.push(makeSurveyBlock(set)));
-            timeline.push(makeSurveyBlock(ALWAYS_LAST)); // fixed last
+            return {
+                type: 'survey-multi-choice',
+                preamble: `<h3>${set.title}</h3>${set.preamble ? `<p>${set.preamble}</p>` : ''}`,
+                questions: questions,
+                randomize_question_order: true,  // shuffle items within this questionnaire
+                button_label: 'Next',
+                data: { questionnaire: set.key }
+            };
+        }
+
+        // ---- Add questionnaires to the timeline ----
+        const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
+        randomizedSets.forEach(set => timeline.push(makeSurveyBlock(set)));
+        timeline.push(makeSurveyBlock(ALWAYS_LAST)); // fixed last
 
 
 
-       // final screen
+        // final screen
         timeline.push({
             type: 'html-button-response',
             stimulus: function () {
@@ -748,15 +877,20 @@ Changes/Additions: must add questionnaires, must add consent form, likely
             choices: ['Finish and download'] // 
         });
 
-            // launch the experiment
-                jsPsych.init({
-                    timeline: timeline,
-                    display_element: document.getElementById('jspsych-target'),
-                    on_finish: function () {
-                        // this will download data as CSV when participant clicks “Finish and download”
-                        jsPsych.data.get().localSave('csv', 'mining_task_data.csv');
-                    }
-                });
+        // launch the experiment
+        jsPsych.init({
+            timeline: timeline,
+            display_element: document.getElementById('jspsych-target'),
+            on_finish: function () {
+                // ======== (#3) File naming with ID and timestamp ========
+                const pidSafe = (PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
+                const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
+                const fname = `mining_task_${pidSafe}_${tsSafe}.csv`;
+
+                // this will download data as CSV when participant clicks “Finish and download”
+                jsPsych.data.get().localSave('csv', fname);
+            }
+        });
 
 
     </script>
