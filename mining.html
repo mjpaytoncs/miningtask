@@ -9,17 +9,19 @@ P      A   A    Y      TT    OOOO   N   N
 
 Author: Michael Payton
 Project: Rumination
-Date: June 2025
+Date: August 2025
 Notes: Currently a draft ready for overview and further development.
 Changes/Additions: must add questionnaires, must add consent form, likely 
                    needs to load parameters from .csv file. 
 
 Edit Notes (2025-08-31):
-- Implemented #1 Versioning constant and per-row logging.
-- Implemented #2 Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
-- Implemented #3 File naming to include participant ID and ISO timestamp.
-- Implemented #5 Data schema completeness for dig rows (block_index, trial_index, pre_balance, post_balance, cumulative_scan_cost).
-- Per user instruction: DO NOT change any participant-facing wording in instructions/questions/scales; typos remain intentionally unchanged.
+- Implemented Versioning constant and per-row logging.
+- Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
+- Implemented File naming to include participant ID and ISO timestamp.
+- Implemented Data schema completeness for dig rows (block_index, trial_index, pre_balance, post_balance, cumulative_scan_cost).
+- Removed leading spaces from PTQ preamble and items 14 and 15 to eliminate invisible indentation. No wording changed.
+- Added CSS fallback to center horizontal multi-choice options when no <ul> wrapper is present. Non-destructive and scoped to jspsych survey classes.
+- Set survey layout to vertical for Q's by adding horizontal:false at the set level. Presentation only. Data schema unchanged.
 -->
 
 <head>
