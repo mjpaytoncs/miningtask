@@ -272,7 +272,7 @@ Edit Notes (2025-08-31):
         const N_BLOCKS = 1; // must match number of blocks in per-block overrides
         const TRIALS_PER_BLOCK = 1;
         const STARTING_MONEY = 100;
-        const NOISE = 0.65;   // Scanner noise, probability of a correct scan
+        const NOISE = 0.65;   // scanner accuracy, probability of a correct scan
         const SCAN_COST = 1;
         const REWARD = 50;   // reward if correct
         const PENALTY = 100; // penalty if incorrect
@@ -635,14 +635,14 @@ Edit Notes (2025-08-31):
             feedbackHTML: `<p>Incorrect. Scanning both gives you information about the asteroid and does <em>not</em> end the trial. It provides some noisy information at a cost set by the company. You can <em>scan</em> repeatedly on the same asteroid.</p>`
         });
 
-        // Q2: meaning of “scanner noise 70%”
+        // Q2: meaning of “scanner accuracy 70%”
         const quizQ2 = makeQuizQuestion({
             qid: 'noise_def',
-            promptHTML: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner noise. Suppose scanner noise is 70%. What does this mean?</p>`,
+            promptHTML: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong> and they have scanner accuracy. Suppose scanner accuracy is 70%. What does this mean?</p>`,
             choices: [
-                'I can trust that the scanner is giving me the right answer most of the time.',
-                'The scanner makes a noise at 70% volume.',
-                'The scanner is only giving the correct location 70% of the time.'
+                'I can trust that the scanner is probably correct all of the time.',
+                'The scanner is not reliable at all, so I should ignore the scanning results.',
+                'The scanner is only giving the correct location of the gold 70% of the time.'
             ],
             correctIndex: 2,
             feedbackHTML: `<p>Incorrect. The “70%” means the scanner’s message matches the true gold location 70% of the time.</p>`
@@ -793,7 +793,7 @@ Edit Notes (2025-08-31):
                 <h3>Questionnaires</h3>
                 <p>The mining trials are complete. The next section asks about your usual thoughts, feelings, and habits in everyday life.</p>
                 <p>Please answer honestly based on your typical experience. There are no right or wrong answers. Each questionnaire will include its own instructions. Follow those as written.</p>
-                <p>Some items refer to topics such as low mood, worry, or sleep. If any question feels uncomfortable, you may pause or stop at any time. This section is not timed, so take the time you need.</p>
+                <p>Some items refer to topics such as low mood, worry, or sleep. If any question feels uncomfortable, you may pause for a period. You may also leave the experiment at any time. Though this will affect your compensation. This section is not timed, so take the time you need.</p>
                 <p>When you are ready, select Begin Questionnaires.</p>
   `,
                 choices: ['Begin Questionnaires']
@@ -820,7 +820,7 @@ Edit Notes (2025-08-31):
         const Q_SETS = [
             {
                 key: 'rrs',
-                title: 'Ruminative Responses Scale',
+                title: '',
                 preamble: 'Look at the scale below and please tell us if you never, sometimes, often, or always think or do each one when you feel down, sad, or depressed. Please indicate what you generally do, not what you think you should do.',
                 optionsKey: 'often4',
                 items: [
@@ -851,7 +851,7 @@ Edit Notes (2025-08-31):
             },
             {
                 key: 'pswq',
-                title: 'Penn State Worry Questionnaire',
+                title: '',
                 preamble: 'Think about how typical each statement is for you.',
                 optionsKey: 'typical5',
                 items: [
@@ -876,13 +876,13 @@ Edit Notes (2025-08-31):
             },
             {
                 key: 'ptq',
-                title: 'Perseverative Thinking Questionnaire',
+                title: '',
                 preamble: 'In this questionnaire, you will be asked to describe how you typically think about negative experiences or problems. Please read the following statements and rate the extent to which they apply to you when you think about negative experiences or problems.',
                 optionsKey: 'often5',
                 items: [
                     'The same thoughts keep going through my mind',
                     'Thoughts intrude into my mind.',
-                    'I cannott stop dwelling on my thoughts.',
+                    'I cannot stop dwelling on my thoughts.',
                     'I think about many problems without solving any of them.',
                     'I cannot do anything else while thinking about my problems',
                     'My thoughts repeat themselves.',
@@ -901,7 +901,7 @@ Edit Notes (2025-08-31):
 
             {
                 key: 'MCQ30-F1',
-                title: 'Cognitive Confidence',
+                title: '',
                 preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                 optionsKey: 'agree4',
                 items: [
@@ -917,7 +917,7 @@ Edit Notes (2025-08-31):
 
             {
                 key: 'MCQ30-F2',
-                title: 'Positive Beliefs',
+                title: '',
                 preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                 optionsKey: 'agree4',
                 items: [
@@ -933,7 +933,7 @@ Edit Notes (2025-08-31):
 
             {
                 key: 'MCQ30-F3',
-                title: 'Cognitive Self-Consciousness',
+                title: '',
                 preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                 optionsKey: 'agree4',
                 items: [
@@ -949,7 +949,7 @@ Edit Notes (2025-08-31):
 
             {
                 key: 'MCQ30-F4',
-                title: 'Uncontrollability',
+                title: '',
                 preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                 optionsKey: 'agree4',
                 items: [
@@ -965,7 +965,7 @@ Edit Notes (2025-08-31):
 
             {
                 key: 'MCQ30-F5',
-                title: 'Need to Control',
+                title: '',
                 preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
                 optionsKey: 'agree4',
                 items: [
