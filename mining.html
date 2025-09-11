@@ -14,7 +14,7 @@ Notes: Currently a draft ready for overview and further development.
 Changes/Additions: must add questionnaires, must add consent form, likely 
                    needs to load parameters from .csv file. 
 
-Edit Notes (2025-08-31):
+Edit Notes (2025-09-11):
 - Implemented Versioning constant and per-row logging.
 - Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
 - Implemented File naming to include participant ID and ISO timestamp.
@@ -24,6 +24,8 @@ Edit Notes (2025-08-31):
 - Set survey layout to vertical for Q's by adding horizontal:false at the set level. Presentation only. Data schema unchanged.
 - Added HUD style to task and loading screen
 - Added demographic questions
+- Added ghost counter "+1" to scan action
+- Added ping to scan counter
 -->
 
 <head>
@@ -258,6 +260,34 @@ Edit Notes (2025-08-31):
 .hud-btn:hover { background: rgba(22,44,66,.95) !important; }
 .hud-btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(80,180,255,.55) !important; }
 
+/* === Scan feedback === */
+.scan-flash { animation: scanFlash 600ms ease-out; }
+@keyframes scanFlash {
+  0%   { box-shadow: 0 0 0 2px rgba(80,180,255,.45), inset 0 0 26px rgba(80,180,255,.22); }
+  100% { box-shadow: 0 0 0 0 rgba(80,180,255,0),     inset 0 0 0   rgba(0,0,0,0); }
+}
+
+.count-bump { animation: countBump 320ms ease-out; transform-origin: 50% 60%; }
+@keyframes countBump {
+  0%   { transform: scale(1.00); color:#cfe8ff; }
+  50%  { transform: scale(1.25); color:#ffffff; }
+  100% { transform: scale(1.00); color:#cfe8ff; }
+}
+
+.delta { margin-left: 6px; font-weight: 600; opacity: 0; }
+.delta.show { animation: deltaPop 820ms ease-out forwards; }
+@keyframes deltaPop {
+  0%   { opacity: 0; transform: translateY(4px); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
+.new-badge {
+  margin-left: 8px; font-size: .72rem; padding: 2px 6px;
+  border-radius: 999px; border: 1px solid rgba(80,180,255,.35);
+  background: rgba(80,180,255,.14);
+}
+
 
     </style>
 </head>
@@ -309,6 +339,31 @@ Edit Notes (2025-08-31):
         let scanSurfaceCount = 0;
         let scanCount = 0;      // total scans this trial
 
+        // Visual/audio cue helpers
+            let lastAction = null;         // 'scan' | 'dig' | null
+            let lastObsType = null;        // 'surface' | 'core' | null
+            const ENABLE_SCAN_SOUND = true;
+            let _audioCtx = null;
+            function playScanPing() {
+                if (!ENABLE_SCAN_SOUND) return;
+                try {
+                    _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                    const o = _audioCtx.createOscillator();
+                    const g = _audioCtx.createGain();
+                    o.type = 'sine';
+                    o.frequency.value = 1046;          // soft, bright ‘ping’
+                    o.connect(g);
+                    g.connect(_audioCtx.destination);
+                    const now = _audioCtx.currentTime;
+                    g.gain.setValueAtTime(0.0001, now);
+                    g.gain.exponentialRampToValueAtTime(0.09, now + 0.01);
+                    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+                    o.start(now);
+                    o.stop(now + 0.18);
+                } catch (_) { /* ignore */ }
+            }
+
+
         // track where we are in blocks/trials
         let globalBlockIndex = 0;
         let globalTrialIndex = 0;
@@ -345,12 +400,15 @@ Edit Notes (2025-08-31):
 
         // new asteroid, reset observation and counters
         function resetAsteroid() {
-            trueState = (Math.random() < 0.5) ? 'surface' : 'core';
-            scanMsg = null;
-            scanCoreCount = 0;
-            scanSurfaceCount = 0;
-            scanCount = 0;
-        }
+                trueState = (Math.random() < 0.5) ? 'surface' : 'core';
+                scanMsg = null;
+                scanCoreCount = 0;
+                scanSurfaceCount = 0;
+                scanCount = 0;
+                lastAction = null;            // 
+                lastObsType = null;           // 
+            }
+
 
         // Trial: scan vs dig
             const scanOrDig = {
@@ -359,6 +417,13 @@ Edit Notes (2025-08-31):
                     const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
                     const trialsDone = globalTrialIndex + 1;
                     const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
+
+                    const justScanned = (lastAction === 'scan');                   // NEW
+                    const scannerCardClass = `hud-card ${justScanned ? 'scan-flash' : ''}`; // NEW
+                    const coreBumpClass = justScanned && lastObsType === 'core' ? 'count-bump' : '';      // NEW
+                    const surfBumpClass = justScanned && lastObsType === 'surface' ? 'count-bump' : '';   // NEW
+                    const coreDeltaClass = justScanned && lastObsType === 'core' ? 'delta show' : 'delta';// NEW
+                    const surfDeltaClass = justScanned && lastObsType === 'surface' ? 'delta show' : 'delta'; // NEW
 
                     return `
     <div class="hud">
@@ -383,12 +448,25 @@ Edit Notes (2025-08-31):
         </div>
 
         <!-- Scanner readout card SECOND -->
-        <div class="hud-card">
-          <p>Current scanner observation: <strong>${scanMsg || 'None'}</strong></p>
+        <div class="${scannerCardClass}">
+          <p>
+            Current scanner observation:
+            <strong>${scanMsg || 'None'}</strong>
+            ${(lastAction === 'scan' && scanMsg) ? '<span class="new-badge">NEW</span>' : ''}
+          </p>
           <div class="hud-divider"></div>
-          <p>Total number of Scans indicating Core: <strong>${scanCoreCount}</strong></p>
-          <p>Total number of Scans indicating Surface: <strong>${scanSurfaceCount}</strong></p>
+          <p>
+            Total Scans indicating Core:
+            <strong class="${coreBumpClass}">${scanCoreCount}</strong>
+            <span class="${coreDeltaClass}">+1</span>
+          </p>
+          <p>
+            Total Scans indicating Surface:
+            <strong class="${surfBumpClass}">${scanSurfaceCount}</strong>
+            <span class="${surfDeltaClass}">+1</span>
+          </p>
         </div>
+
       </div>
     </div>
     `;
@@ -430,6 +508,10 @@ Edit Notes (2025-08-31):
                         scanMsg = (obs === 'surface')
                             ? 'Scanners suggest there is gold at the surface'
                             : 'Scanners suggest there is gold in the core';
+                            lastAction = 'scan';
+                        lastObsType = obs;           // 'core' or 'surface'
+                        playScanPing();              // optional soft ping
+
                         // update counters
                         if (obs === 'surface') {
                             scanSurfaceCount++;
@@ -439,6 +521,9 @@ Edit Notes (2025-08-31):
                         scanCount++;
                     } else {
                         // -------- DIG --------
+                         lastAction = 'dig';
+                        lastObsType = null;
+
                         data.scan = false;
 
                         // ======== (#5) pre/post balance and cumulative scan cost on dig row ========
