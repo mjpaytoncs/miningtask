@@ -295,8 +295,14 @@ Edit Notes (2025-09-11):
 <body>
     <div id="jspsych-target"></div>
     <script>
-        // ======== (#1) Versioning ========
-        const TASK_VERSION = 'mining_task_2025-08-31_v1';
+        // ======== Versioning ========
+        const TASK_VERSION = 'mining_task_2025-09-11_v2';
+
+        // ========  Prolific completion URL ======== 
+        // (replace XXXXXXXX with code from Prolific)
+            const PROLIFIC_COMPLETION_URL =
+                'https://app.prolific.com/submissions/complete?cc=XXXXXXXX';
+
 
         // Parameters
         const N_BLOCKS = 1; // must match number of blocks in per-block overrides
@@ -375,28 +381,46 @@ Edit Notes (2025-09-11):
         let START_TIMESTAMP = new Date().toISOString();
 
         function collectParticipantMetadata() {
-            try {
-                const pid = window.prompt('Participant ID (required):', '') || 'NA';
-                const sid = window.prompt('Session ID (optional):', '') || 'NA';
-                PARTICIPANT_ID = String(pid).trim() || 'NA';
-                SESSION_ID = String(sid).trim() || 'NA';
+                const q = new URLSearchParams(window.location.search);
+                const prolific_pid = q.get('PROLIFIC_PID');  // participant
+                const prolific_study = q.get('STUDY_ID');      // study
+                const prolific_sess = q.get('SESSION_ID');    // session/submission
+
                 START_TIMESTAMP = new Date().toISOString();
-                jsPsych.data.addProperties({
-                    task_version: TASK_VERSION,
-                    participant_id: PARTICIPANT_ID,
-                    session_id: SESSION_ID,
-                    start_timestamp: START_TIMESTAMP
-                });
-            } catch (e) {
-                // Fallback if prompts are blocked
-                jsPsych.data.addProperties({
-                    task_version: TASK_VERSION,
-                    participant_id: PARTICIPANT_ID,
-                    session_id: SESSION_ID,
-                    start_timestamp: START_TIMESTAMP
-                });
+
+                if (prolific_pid) {
+                    // Use Prolific-provided IDs
+                    PARTICIPANT_ID = prolific_pid;
+                    SESSION_ID = prolific_sess || 'NA';
+
+                    jsPsych.data.addProperties({
+                        task_version: TASK_VERSION,
+                        participant_id: prolific_pid,          // keep your existing column name
+                        prolific_pid: prolific_pid,            // explicit Prolific fields too
+                        prolific_study_id: prolific_study || 'NA',
+                        prolific_session_id: prolific_sess || 'NA',
+                        start_timestamp: START_TIMESTAMP,
+                        source: 'prolific'
+                    });
+                } else {
+                    // Fallback to your manual prompts (as you had before)
+                    try {
+                        const pid = window.prompt('Participant ID (required):', '') || 'NA';
+                        const sid = window.prompt('Session ID (optional):', '') || 'NA';
+                        PARTICIPANT_ID = String(pid).trim() || 'NA';
+                        SESSION_ID = String(sid).trim() || 'NA';
+                    } catch (_) { /* ignore */ }
+
+                    jsPsych.data.addProperties({
+                        task_version: TASK_VERSION,
+                        participant_id: PARTICIPANT_ID,
+                        session_id: SESSION_ID,
+                        start_timestamp: START_TIMESTAMP,
+                        source: 'local'
+                    });
+                }
             }
-        }
+
 
         // new asteroid, reset observation and counters
         function resetAsteroid() {
@@ -1229,15 +1253,26 @@ Edit Notes (2025-09-11):
             timeline: timeline,
             display_element: document.getElementById('jspsych-target'),
             on_finish: function () {
-                // ======== (#3) File naming with ID and timestamp ========
-                const pidSafe = (PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
-                const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
-                const fname = `mining_task_${pidSafe}_${tsSafe}.csv`;
+                // Prefer Prolific PID for filename if present
+                const q = new URLSearchParams(window.location.search);
+                const prolific_pid = q.get('PROLIFIC_PID');
 
-                // this will download data as CSV when participant clicks “Finish and download”
+                const pidForFile = (prolific_pid || PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
+                const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
+                const fname = `mining_task_${pidForFile}_${tsSafe}.csv`;
+
+                // Trigger CSV download
                 jsPsych.data.get().localSave('csv', fname);
-            }
-        });
+
+                // If this was a Prolific participant, send them to the completion URL
+                if (prolific_pid && PROLIFIC_COMPLETION_URL) {
+                    // Short delay so the download dialog can appear first
+                    setTimeout(function () {
+                        window.location.href = PROLIFIC_COMPLETION_URL;
+                    }, 600);
+                }
+            }});
+
 
 
     </script>
