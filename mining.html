@@ -298,6 +298,10 @@ Edit Notes (2025-09-11):
         // ======== Versioning ========
         const TASK_VERSION = 'mining_task_2025-09-11_v2';
 
+        // ======== Remote save endpoint (Google Apps Script web app URL) ========
+            const SAVE_URL = 'https://script.google.com/macros/s/AKfycbz9GoKyRM6eojhuKEbxt3SAyodGB4muLMBcfxwalcq08wlpdNLC-7Eub-S-nTBnHTHVWw/exec';   // Script endpoint here: e.g., https://script.google.com/macros/s/AKfycb.../exec
+
+
         // ========  Prolific completion URL ======== 
         // (replace XXXXXXXX with code from Prolific)
             const PROLIFIC_COMPLETION_URL =
@@ -1257,52 +1261,72 @@ Edit Notes (2025-09-11):
                 const q = new URLSearchParams(window.location.search);
                 const prolific_pid = q.get('PROLIFIC_PID');
 
-                // If you didn't define PROLIFIC_COMPLETION_URL earlier, populate it from the querystring.
-                // (This preserves your original redirect check below.)
-                if (typeof window.PROLIFIC_COMPLETION_URL === 'undefined' || !window.PROLIFIC_COMPLETION_URL) {
-                    window.PROLIFIC_COMPLETION_URL = q.get('PROLIFIC_REDIRECT') || null;
-                }
-
                 const pidForFile = (prolific_pid || PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
                 const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
                 const fname = `mining_task_${pidForFile}_${tsSafe}.csv`;
 
-                // Trigger CSV download
+                // Trigger CSV download (kept exactly as you had it)
                 jsPsych.data.get().localSave('csv', fname);
 
-                // ---- Save to Google Sheet via Apps Script (non-blocking) ----
-                const SAVE_URL = 'https://script.google.com/macros/s/AKfycbz9GoKyRM6eojhuKEbxt3SAyodGB4muLMBcfxwalcq08wlpdNLC-7Eub-S-nTBnHTHVWw/exec'; // <-- THIS MUST ALLIGN WITH GOOGLE APPS URL
-
+                // ---------- NEW: send per-trial rows to the Apps Script "rows" endpoint ----------
                 try {
+                    // Get an array of row objects
+                    const rows = JSON.parse(jsPsych.data.get().json());
+
                     const payload = {
                         file_name: fname,
-                        prolific_pid: prolific_pid || 'NA',
-                        task_version: (typeof TASK_VERSION !== 'undefined' ? TASK_VERSION : 'NA'),
+                        prolific_pid: prolific_pid || '',
+                        task_version: (typeof TASK_VERSION !== 'undefined') ? TASK_VERSION : '',
                         start_timestamp: START_TIMESTAMP || '',
-                        study_id: q.get('STUDY_ID') || null,
-                        session_id: q.get('SESSION_ID') || (typeof SESSION_ID !== 'undefined' ? SESSION_ID : null),
-                        rows: jsPsych.data.get().values() // all jsPsych rows as JSON
+                        session_id: SESSION_ID || '',
+                        rows: rows
                     };
 
-                    // Fire-and-forget; keepalive helps when the tab is closing
                     fetch(SAVE_URL, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                        keepalive: true
-                    }).catch(() => { /* swallow network errors so they don't affect redirect */ });
-                } catch (_) {
-                    // Never let saving errors interrupt the participant
-                }
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(payload)
+                    })
+                        .then(async (r) => {
+                            const text = await r.text();
+                            try {
+                                const json = JSON.parse(text);
+                                console.log('[Drive save] response JSON:', json);
+                                if (!json.ok) {
+                                    console.error('[Drive save] server error:', json.error);
+                                    alert('Drive save failed: ' + json.error);
+                                } else {
+                                    console.log(`[Drive save] wrote ${json.written} rows to PID ${json.pid}`);
+                                }
+                            } catch (e) {
+                                console.error('[Drive save] non-JSON response:', text);
+                                alert('Drive save returned non-JSON. See console.');
+                            }
+                        })
+                        .catch(err => {
+                            console.error('[Drive save] fetch error:', err);
+                            alert('Drive save fetch failed. See console.');
+                        })
+                        .finally(() => {
+                            if (prolific_pid && PROLIFIC_COMPLETION_URL) {
+                                setTimeout(() => { window.location.href = PROLIFIC_COMPLETION_URL; }, 600);
+                            }
+                        });
 
-                // If this was a Prolific participant, send them to the completion URL
-                if (prolific_pid && PROLIFIC_COMPLETION_URL) {
-                    // Short delay so the download dialog can appear first
-                    setTimeout(function () {
-                        window.location.href = PROLIFIC_COMPLETION_URL;
-                    }, 600);
+
+                } catch (err) {
+                    console.error('[Drive save] build payload failed:', err);
+                    // Still do Prolific redirect if applicable
+                    if (prolific_pid && PROLIFIC_COMPLETION_URL) {
+                        setTimeout(function () {
+                            window.location.href = PROLIFIC_COMPLETION_URL;
+                        }, 600);
+                    }
                 }
             }
+
+
+
 
             });
 
