@@ -1257,12 +1257,43 @@ Edit Notes (2025-09-11):
                 const q = new URLSearchParams(window.location.search);
                 const prolific_pid = q.get('PROLIFIC_PID');
 
+                // If you didn't define PROLIFIC_COMPLETION_URL earlier, populate it from the querystring.
+                // (This preserves your original redirect check below.)
+                if (typeof window.PROLIFIC_COMPLETION_URL === 'undefined' || !window.PROLIFIC_COMPLETION_URL) {
+                    window.PROLIFIC_COMPLETION_URL = q.get('PROLIFIC_REDIRECT') || null;
+                }
+
                 const pidForFile = (prolific_pid || PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
                 const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
                 const fname = `mining_task_${pidForFile}_${tsSafe}.csv`;
 
                 // Trigger CSV download
                 jsPsych.data.get().localSave('csv', fname);
+
+                // ---- Save to Google Sheet via Apps Script (non-blocking) ----
+                const SAVE_URL = 'https://script.google.com/macros/s/AKfycbz9GoKyRM6eojhuKEbxt3SAyodGB4muLMBcfxwalcq08wlpdNLC-7Eub-S-nTBnHTHVWw/exec'; // <-- THIS MUST ALLIGN WITH GOOGLE APPS URL
+
+                try {
+                    const payload = {
+                        file_name: fname,
+                        prolific_pid: prolific_pid || 'NA',
+                        task_version: (typeof TASK_VERSION !== 'undefined' ? TASK_VERSION : 'NA'),
+                        start_timestamp: START_TIMESTAMP || '',
+                        study_id: q.get('STUDY_ID') || null,
+                        session_id: q.get('SESSION_ID') || (typeof SESSION_ID !== 'undefined' ? SESSION_ID : null),
+                        rows: jsPsych.data.get().values() // all jsPsych rows as JSON
+                    };
+
+                    // Fire-and-forget; keepalive helps when the tab is closing
+                    fetch(SAVE_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        keepalive: true
+                    }).catch(() => { /* swallow network errors so they don't affect redirect */ });
+                } catch (_) {
+                    // Never let saving errors interrupt the participant
+                }
 
                 // If this was a Prolific participant, send them to the completion URL
                 if (prolific_pid && PROLIFIC_COMPLETION_URL) {
@@ -1271,8 +1302,9 @@ Edit Notes (2025-09-11):
                         window.location.href = PROLIFIC_COMPLETION_URL;
                     }, 600);
                 }
-            }});
+            }
 
+            });
 
 
     </script>
