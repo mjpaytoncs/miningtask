@@ -905,7 +905,7 @@ Edit Notes (2025-09-11):
                 stimulus: `
                 <h3>Questionnaires</h3>
                 <p>The mining trials are complete. The next section asks about your usual thoughts, feelings, and habits in everyday life.</p>
-                <p>Please answer honestly based on your typical experience. There are no right or wrong answers. Each questionnaire will include its own instructions. Follow those as written.</p>
+                <p>Please answer honestly based on your typical experience. <strong>Please read each question carefully.</strong> There are no right or wrong answers. Each questionnaire will include its own instructions. Follow those as written.</p>
                 <p>Some items refer to topics such as low mood, worry, or sleep. If any question feels uncomfortable, you may pause for a period. You may also leave the experiment at any time. Though this will affect your compensation. This section is not timed, so take the time you need.</p>
                 <p>When you are ready, select Begin Questionnaires.</p>
   `,
@@ -1097,7 +1097,7 @@ Edit Notes (2025-09-11):
         // ---- PHQ-8 always-last questionnaire (not randomized) ----
         const ALWAYS_LAST = {
             key: 'PHQ-8',
-            title: 'Patient Health Questionnaire',
+            title: '',
             preamble: 'Over the last 2 weeks, how often have  you been bothered by any of the following problems?:',
             optionsKey: 'days4',
             items: [
