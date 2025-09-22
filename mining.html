@@ -14,7 +14,7 @@ Notes: Currently a draft ready for overview and further development.
 Changes/Additions: must add questionnaires, must add consent form, likely 
                    needs to load parameters from .csv file. 
 
-Edit Notes (2025-09-11):
+Edit Notes (2025-09-21):
 - Implemented Versioning constant and per-row logging.
 - Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
 - Implemented File naming to include participant ID and ISO timestamp.
@@ -26,6 +26,7 @@ Edit Notes (2025-09-11):
 - Added demographic questions
 - Added ghost counter "+1" to scan action
 - Added ping to scan counter
+- Questionnaire items are now optional with alert for incomplete items.
 -->
 
 <head>
@@ -286,6 +287,52 @@ Edit Notes (2025-09-11):
   margin-left: 8px; font-size: .72rem; padding: 2px 6px;
   border-radius: 999px; border: 1px solid rgba(80,180,255,.35);
   background: rgba(80,180,255,.14);
+}
+
+/* ---- Soft-required warning style for Questionnaires ---- */
+.softwarn-banner{
+  margin:0 0 10px 0; padding:10px 12px;
+  border:1px solid rgba(255,200,0,.55);
+  background: rgba(255,200,0,.12);
+  border-radius:8px; color:#ffd76a;
+  font-weight:600;
+}
+
+.jspsych-survey-multi-choice-question.softwarn-missing{
+  border:1px solid rgba(255,80,80,.55);
+  border-radius:8px; padding:8px 10px;
+  box-shadow: inset 0 0 0 2px rgba(255,80,80,.15);
+}
+
+/* ===== Soft-required visuals for questionnaires ===== */
+.softwarn-banner {
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  color: #856404;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 0 0 12px 0;
+  font-size: 0.95rem;
+}
+
+.jspsych-survey-multi-choice-question.soft-missing {
+  border: 1px solid rgba(220, 53, 69, .6);
+  background: rgba(220, 53, 69, .06);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.jspsych-soft-miss-hint {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: #b02a37;
+}
+
+/* Strong highlight for soft-missing items */
+.jspsych-display-element .jspsych-survey-multi-choice-question.soft-missing{
+  border: 2px solid #dc3545 !important;
+  background: rgba(220,53,69,.06) !important;
+  border-radius: 8px !important;
 }
 
 
@@ -906,7 +953,7 @@ Edit Notes (2025-09-11):
                 <h3>Questionnaires</h3>
                 <p>The mining trials are complete. The next section asks about your usual thoughts, feelings, and habits in everyday life.</p>
                 <p>Please answer honestly based on your typical experience. <strong>Please read each question carefully.</strong> There are no right or wrong answers. Each questionnaire will include its own instructions. Follow those as written.</p>
-                <p>Some items refer to topics such as low mood, worry, or sleep. If any question feels uncomfortable, you may pause for a period. You may also leave the experiment at any time. Though this will affect your compensation. This section is not timed, so take the time you need.</p>
+                <p>Some items refer to topics such as low mood, worry, or sleep.  If you prefer not to answer an item, you may leave it blank. If you try to continue with blanks, we’ll gently remind you and highlight them; you can still press <em>Next</em> again to continue.</p>
                 <p>When you are ready, select Begin Questionnaires.</p>
   `,
                 choices: ['Begin Questionnaires']
@@ -1113,51 +1160,232 @@ Edit Notes (2025-09-11):
             horizontal: false
         };
 
-        // ---- Helper: build a jsPsych survey trial from a set ----
-        function makeSurveyBlock(set) {
-            const setOptions =
-                set.options ||
-                (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
-                DEFAULT_SCALE;
+        // ---- Helper: build a jsPsych survey trial from a set (with SOFT required) ----
+            // first press warns & highlights blanks; second press submits as-is. To disable for a specific questionnaire, set `soft_required: false` on that set.
+               // ---- Helper: build a jsPsych survey trial from a set (SOFT required, single-pass with submit intercept) ----
+                function makeSurveyBlock(set) {
+                    const setOptions =
+                        set.options ||
+                        (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
+                        DEFAULT_SCALE;
 
-            const questions = set.items.map((it, i) => {
-                // Allow strings or rich objects per item
-                const item = (typeof it === 'string') ? { prompt: it } : it;
+                    // Normalize items + fixed names
+                    const items = set.items.map(it => (typeof it === 'string') ? { prompt: it } : it);
+                    const names = items.map((_, i) => `${set.key}_${i + 1}`);
 
-                // Decide options for this item (item overrides > set options > default)
-                const itemOptions =
-                    item.options ||
-                    (item.optionsKey ? Q_SCALES[item.optionsKey] : null) ||
-                    setOptions ||
-                    DEFAULT_SCALE;
+                    // Randomize ONCE per questionnaire and keep that order for this block
+                    const order = jsPsych.randomization.shuffle([...Array(items.length).keys()]);
 
-                // Allow per-item required/horizontal overrides; else fall back to set or defaults
-                const required =
-                    (typeof item.required === 'boolean') ? item.required :
-                        (typeof set.required === 'boolean') ? set.required : true;
+                    // Map original index -> displayed index (Q#)
+                    const displayIndexByOrig = {};
+                    order.forEach((origIdx, displayIdx) => displayIndexByOrig[origIdx] = displayIdx);
 
-                const horizontal =
-                    (typeof item.horizontal === 'boolean') ? item.horizontal :
-                        (typeof set.horizontal === 'boolean') ? set.horizontal : true;
+                    // Soft-required state
+                    let warnedOnce = false;        // false until we block first submit with blanks
+                    let lastResponses = {};        // { name: chosenOptionText }
+                    let lastMissingNames = [];     // item names that were blank on last attempt
 
-                return {
-                    prompt: item.prompt,
-                    name: `${set.key}_${i + 1}`,   // column name in CSV
-                    options: itemOptions,
-                    required: required,
-                    horizontal: horizontal
-                };
-            });
+                    function buildQuestions() {
+                        return order.map(origIdx => {
+                            const item = items[origIdx];
+                            const name = names[origIdx];
 
-            return {
-                type: 'survey-multi-choice',
-                preamble: `<h3>${set.title}</h3>${set.preamble ? `<p>${set.preamble}</p>` : ''}`,
-                questions: questions,
-                randomize_question_order: true,  // shuffle items within this questionnaire
-                button_label: 'Next',
-                data: { questionnaire: set.key }
-            };
-        }
+                            const itemOptions =
+                                item.options ||
+                                (item.optionsKey ? Q_SCALES[item.optionsKey] : null) ||
+                                setOptions ||
+                                DEFAULT_SCALE;
+
+                            const horizontal =
+                                (typeof item.horizontal === 'boolean') ? item.horizontal :
+                                    (typeof set.horizontal === 'boolean') ? set.horizontal : false;
+
+                            return {
+                                prompt: item.prompt,
+                                name: name,
+                                options: itemOptions,
+                                required: false,      // we manage soft-required ourselves
+                                horizontal: horizontal
+                            };
+                        });
+                    }
+
+                    function qGroupForItemName(itemName) {
+                        const origIdx = names.indexOf(itemName);
+                        if (origIdx === -1) return null;
+                        const dispIdx = displayIndexByOrig[origIdx];
+                        return (typeof dispIdx === 'number') ? `Q${dispIdx}` : null;
+                    }
+
+                    function esc(v) { return String(v).replace(/(["\\])/g, '\\$1'); }
+
+                    // Robust CSS escape for attribute selectors like [data-name="..."]
+                    function cssEsc(s) {
+                        return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/(["\\])/g, '\\$1');
+                    }
+
+                    // Remove the soft-missing style as soon as a user picks an option
+                    function installSoftMissingClears() {
+                        document
+                            .querySelectorAll('.jspsych-survey-multi-choice-question.soft-missing input[type="radio"]')
+                            .forEach(inp => {
+                                inp.addEventListener('change', () => {
+                                    const q = inp.closest('.jspsych-survey-multi-choice-question');
+                                    if (!q) return;
+                                    q.classList.remove('soft-missing');
+                                    const hint = q.querySelector('.jspsych-soft-miss-hint');
+                                    if (hint) hint.remove();
+                                }, { once: true });
+                            });
+                    }
+
+                    const surveyTrial = {
+                        type: 'survey-multi-choice',
+                        preamble: `<h3>${set.title || ''}</h3>${set.preamble ? `<p>${set.preamble}</p>` : ''}`,
+                        questions: buildQuestions(),
+                        randomize_question_order: false,
+                        button_label: 'Next',
+                        data: { questionnaire: set.key },
+
+                        on_load: function () {
+                            const host = document.getElementById('jspsych-content');
+
+                            // Prefill prior selections, if any
+                            Object.keys(lastResponses).forEach(name => {
+                                const qGroup = qGroupForItemName(name);
+                                const value = lastResponses[name];
+                                if (!qGroup || value == null || value === '') return;
+                                const radio = document.querySelector(`input[name="${qGroup}"][value="${esc(value)}"]`);
+                                if (radio) radio.checked = true;
+                            });
+
+                            // If we previously warned, show banner and highlight only missing ones
+                            if (warnedOnce && lastMissingNames.length && host && !document.getElementById('softwarn-banner')) {
+                                const banner = document.createElement('div');
+                                banner.id = 'softwarn-banner';
+                                banner.className = 'softwarn-banner';
+                                banner.innerHTML = `
+          Some items were left unanswered. If you missed one by mistake you have a chance to re-enter your response.
+          You may answer them now, or press <strong>Next</strong> again to continue without answering.`;
+                                host.insertBefore(banner, host.firstChild);
+                            }
+
+                            // Highlight any missing items from last check (target by data-name)
+                            lastMissingNames.forEach(name => {
+                                const q = document.querySelector(
+                                    `.jspsych-survey-multi-choice-question[data-name="${cssEsc(name)}"]`
+                                );
+                                if (!q) return;
+                                if (q.querySelector('input[type="radio"]:checked')) return;
+                                q.classList.add('soft-missing');
+                                if (!q.querySelector('.jspsych-soft-miss-hint')) {
+                                    const hint = document.createElement('div');
+                                    hint.className = 'jspsych-soft-miss-hint';
+                                    hint.textContent = 'Please select an option, or press Next again to skip.';
+                                    q.appendChild(hint);
+                                }
+                                q.offsetHeight; // force reflow so CSS repaint is obvious
+                                // q.scrollIntoView({ behavior: 'smooth', block: 'center' }); // optional
+                            });
+
+                            installSoftMissingClears();
+
+                            // Intercept submit for soft-required behavior
+                            const btn = document.getElementById('jspsych-survey-multi-choice-next');
+                            if (!btn) return;
+
+                            btn.addEventListener('click', function intercept(ev) {
+                                // Parse current selections from DOM
+                                const current = {};
+                                order.forEach((origIdx, dispIdx) => {
+                                    const name = names[origIdx];
+                                    const qGroup = `Q${dispIdx}`;
+                                    const checked = document.querySelector(`input[name="${qGroup}"]:checked`);
+                                    if (checked) current[name] = checked.value;
+                                });
+
+                                // Find blanks
+                                const missing = names.filter(n => !(n in current) || current[n] == null || current[n] === '');
+
+                                // First time with blanks: block advance, store state, paint warnings, and keep answers
+                                if (missing.length > 0 && !warnedOnce) {
+                                    ev.preventDefault();
+                                    ev.stopImmediatePropagation();          // ← NEW: cancel jsPsych’s own handler this click
+                                    warnedOnce = true;
+                                    lastResponses = current;
+                                    lastMissingNames = missing;
+
+                                    // Defer DOM painting one frame so styles reliably stick after the click
+                                    requestAnimationFrame(() => {
+                                        const host = document.getElementById('jspsych-content');
+                                        if (host && !document.getElementById('softwarn-banner')) {
+                                            const banner = document.createElement('div');
+                                            banner.id = 'softwarn-banner';
+                                            banner.className = 'softwarn-banner';
+                                            banner.innerHTML = `Some items were left unanswered. They’re highlighted below.
+        You may answer them now, or press <strong>Next</strong> again to continue without answering.`;
+                                            host.insertBefore(banner, host.firstChild);
+                                        }
+
+                                        // Highlight any missing items from last check (target by data-name)
+                                       requestAnimationFrame(() => {
+                                            const host = document.getElementById('jspsych-content');
+                                            if (host && !document.getElementById('softwarn-banner')) {
+                                                const banner = document.createElement('div');
+                                                banner.id = 'softwarn-banner';
+                                                banner.className = 'softwarn-banner';
+                                                banner.innerHTML = `Some items were left unanswered. They’re highlighted below.
+You may answer them now, or press <strong>Next</strong> again to continue without answering.`;
+                                                host.insertBefore(banner, host.firstChild);
+                                            }
+
+                                            // Highlight any missing items
+                                            lastMissingNames.forEach(name => {
+                                                const q = document.querySelector(
+                                                    `.jspsych-survey-multi-choice-question[data-name="${cssEsc(name)}"]`
+                                                );
+                                                if (!q) return;
+                                                if (q.querySelector('input[type="radio"]:checked')) return; 
+                                                q.classList.add('soft-missing');
+                                                if (!q.querySelector('.jspsych-soft-miss-hint')) {
+                                                    const hint = document.createElement('div');
+                                                    hint.className = 'jspsych-soft-miss-hint';
+                                                    hint.textContent = 'Please select an option, or press Next again to skip.';
+                                                    q.appendChild(hint);
+                                                }
+                                                q.offsetHeight; // force reflow
+                                            });
+                                            }); 
+
+                                            // Attach change listeners *after* .soft-missing elements exist
+                                            installSoftMissingClears();
+                                        });
+
+
+                                    return;  // stay on the page after painting
+                                }
+
+
+                                // Either no blanks, or second click - allow advance.
+                                // Before leaving, stash current answers so a back-navigation would still prefill.
+                                lastResponses = current;
+                                lastMissingNames = missing;
+                            }, { once: false });
+                        },
+
+                        on_finish: function (data) {
+                            // Standard jsPsych parsing
+                            const resp = JSON.parse(data.responses || '{}');
+                            data.soft_missing_count = Object.keys(resp).length ? (names.length - Object.keys(resp).length) : names.length;
+                            data.soft_warned_once = warnedOnce ? 1 : 0;
+                        }
+                    };
+                    
+
+                    // Return single trial. No loop_function needed.
+                    return surveyTrial;
+                }
+
 
         // ---- Add questionnaires to the timeline ----
         const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
@@ -1236,6 +1464,9 @@ Edit Notes (2025-09-11):
                     }
                 ]
             };
+
+            // Add Demographics to timeline
+                timeline.push(makeSurveyBlock(DEMOGRAPHICS_SET));
 
 
 
