@@ -9,10 +9,10 @@ P      A   A    Y      TT    OOOO   N   N
 
 Author: Michael Payton
 Project: Rumination
-Date: August 2025
+Date: October 2025
 Notes: Currently a draft ready for overview and further development.
-Changes/Additions: must add questionnaires, must add consent form, likely 
-                   needs to load parameters from .csv file. 
+Changes/Additions: must add consent form, likely 
+                   needs integration with Prolific
 
 Edit Notes (2025-09-21):
 - Implemented Versioning constant and per-row logging.
@@ -51,7 +51,7 @@ Edit Notes (2025-09-21):
             margin: 0 5px;
         }
 
-        /* 1) Widen the whole slider container and center it */
+        /* Questionnaire Response Container */
         .jspsych-html-slider-response-container {
             width: 600px !important;
             /* 600px is a good starting place, right? */
@@ -97,7 +97,7 @@ Edit Notes (2025-09-21):
             /* match existing spacing */
         }
 
-        /* optional: tiny gap between radio and label, non-destructive */
+        /* Gap between radio and label, non-destructive */
         .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
             margin-right: 6px;
         }
@@ -105,7 +105,7 @@ Edit Notes (2025-09-21):
         /* Force-center horizontal options even without a <ul> wrapper */
         .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
             text-align: center !important;
-            /* center inline children */
+            /* center inline*/
         }
 
         .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
@@ -114,10 +114,10 @@ Edit Notes (2025-09-21):
             width: auto !important;
             /* no 100% width blocks */
             margin: 0 18px !important;
-            /* spacing like before */
+            /* spacing specs*/
             vertical-align: middle !important;
             text-align: left !important;
-            /* keep label text left */
+            
         }
 
         .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
@@ -220,7 +220,7 @@ Edit Notes (2025-09-21):
 /* Force this HUD to stack cards vertically */
 .hud-grid.hud-stack { grid-template-columns: 1fr; }
 
-/* Make the action button group look like a HUD card (dark) */
+/* Make the action button group look like part of space console */
 .hud { margin-bottom: 10px; } /* small gap above the buttons */
 
 .hud-actions {
@@ -242,26 +242,26 @@ Edit Notes (2025-09-21):
   box-sizing: border-box;
 }
 
-/* Make buttons solid and console-like (override any defaults) */
+/* Make buttons solid and console-like (this overrides any defaults) */
 .hud-btn {
   font-family: inherit;
   font-size: 1rem;
   padding: 10px 16px;
   border-radius: 10px;
   border: 1px solid rgba(80,180,255,.35) !important;
-  background: rgba(16,32,48,.9) !important;   /* darker fill */
+  background: rgba(16,32,48,.9) !important;  
   color: #cfe8ff !important;
   box-shadow:
     0 0 0 1px rgba(80,180,255,.18),
     inset 0 0 18px rgba(80,180,255,.10);
   cursor: pointer;
-  opacity: 1 !important; /* prevent washed-out look */
+  opacity: 1 !important; 
 }
 
 .hud-btn:hover { background: rgba(22,44,66,.95) !important; }
 .hud-btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(80,180,255,.55) !important; }
 
-/* === Scan feedback === */
+/* ===== Scanner feedback ===== */
 .scan-flash { animation: scanFlash 600ms ease-out; }
 @keyframes scanFlash {
   0%   { box-shadow: 0 0 0 2px rgba(80,180,255,.45), inset 0 0 26px rgba(80,180,255,.22); }
@@ -289,7 +289,7 @@ Edit Notes (2025-09-21):
   background: rgba(80,180,255,.14);
 }
 
-/* ---- Soft-required warning style for Questionnaires ---- */
+/* ===== Soft-required warning style for Questionnaires ===== */
 .softwarn-banner{
   margin:0 0 10px 0; padding:10px 12px;
   border:1px solid rgba(255,200,0,.55);
@@ -343,9 +343,9 @@ Edit Notes (2025-09-21):
     <div id="jspsych-target"></div>
     <script>
         // ======== Versioning ========
-        const TASK_VERSION = 'mining_task_2025-09-11_v2';
+        const TASK_VERSION = 'mining_task_2025-10-12_v1';
 
-        // ======== Remote save endpoint (Google Apps Script web app URL) ========
+        // ======== Google Apps Script web app URL endpoint for saving ========
             const SAVE_URL = 'https://script.google.com/macros/s/AKfycbz9GoKyRM6eojhuKEbxt3SAyodGB4muLMBcfxwalcq08wlpdNLC-7Eub-S-nTBnHTHVWw/exec';   // Script endpoint here: e.g., https://script.google.com/macros/s/AKfycb.../exec
 
 
@@ -425,7 +425,7 @@ Edit Notes (2025-09-21):
         let globalBlockIndex = 0;
         let globalTrialIndex = 0;
 
-        // ======== (#2) Participant metadata collection (prompts) ========
+        // ======== Participant metadata collection ========
         // Captured before any trials; added to all rows via addProperties.
         let PARTICIPANT_ID = 'NA';
         let SESSION_ID = 'NA';
@@ -439,6 +439,7 @@ Edit Notes (2025-09-21):
 
                 START_TIMESTAMP = new Date().toISOString();
 
+                // If Prolific ID is present these are used:
                 if (prolific_pid) {
                     // Use Prolific-provided IDs
                     PARTICIPANT_ID = prolific_pid;
@@ -473,7 +474,7 @@ Edit Notes (2025-09-21):
             }
 
 
-        // new asteroid, reset observation and counters
+        // On new asteroid, reset observation and counters
         function resetAsteroid() {
                 trueState = (Math.random() < 0.5) ? 'surface' : 'core';
                 scanMsg = null;
@@ -493,12 +494,12 @@ Edit Notes (2025-09-21):
                     const trialsDone = globalTrialIndex + 1;
                     const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
 
-                    const justScanned = (lastAction === 'scan');                   // NEW
-                    const scannerCardClass = `hud-card ${justScanned ? 'scan-flash' : ''}`; // NEW
-                    const coreBumpClass = justScanned && lastObsType === 'core' ? 'count-bump' : '';      // NEW
-                    const surfBumpClass = justScanned && lastObsType === 'surface' ? 'count-bump' : '';   // NEW
-                    const coreDeltaClass = justScanned && lastObsType === 'core' ? 'delta show' : 'delta';// NEW
-                    const surfDeltaClass = justScanned && lastObsType === 'surface' ? 'delta show' : 'delta'; // NEW
+                    const justScanned = (lastAction === 'scan');                   
+                    const scannerCardClass = `hud-card ${justScanned ? 'scan-flash' : ''}`; 
+                    const coreBumpClass = justScanned && lastObsType === 'core' ? 'count-bump' : '';      
+                    const surfBumpClass = justScanned && lastObsType === 'surface' ? 'count-bump' : '';   
+                    const coreDeltaClass = justScanned && lastObsType === 'core' ? 'delta show' : 'delta';
+                    const surfDeltaClass = justScanned && lastObsType === 'surface' ? 'delta show' : 'delta'; 
 
                     return `
     <div class="hud">
@@ -547,10 +548,10 @@ Edit Notes (2025-09-21):
     `;
                 },
 
-                // exact same labels, just styled
+                // lables for action buttons
                 choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
 
-                // use HUD-styled buttons for this trial only
+                // HUD-styled buttons 
                 button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
 
                 // center the button group under the HUD
@@ -562,7 +563,7 @@ Edit Notes (2025-09-21):
                 on_finish: function (data) {
                     const choice = parseInt(data.response);
 
-                    // ======== (#5) Capture indices for this action row ========
+                
                     data.block_index = globalBlockIndex;
                     data.trial_index = globalTrialIndex;
 
@@ -601,7 +602,7 @@ Edit Notes (2025-09-21):
 
                         data.scan = false;
 
-                        // ======== (#5) pre/post balance and cumulative scan cost on dig row ========
+                        // ======== pre/post balance and cumulative scan cost on dig row ========
                         const pre_balance = currentMoney; // before applying reward/penalty
                         const dug = (choice === 1) ? 'core' : 'surface';
                         const correct = (dug === trueState);
@@ -631,22 +632,22 @@ Edit Notes (2025-09-21):
                     data.scanCount = scanCount;
                     data.scanCoreCount = scanCoreCount;
                     data.scanSurfaceCount = scanSurfaceCount;
-                    // rt is already logged by html-button-response
+                    
                 }
             };
 
 
 
-        // loop until they choose to dig, allows infinite scanning
+        // loop until participant chooses to dig, allows infinite scanning
         const scanOrDigLoop = {
             timeline: [scanOrDig],
             loop_function: function (data) {
                 const last = data.values().slice(-1)[0];
-                return parseInt(last.response) === 0;  // keep looping if they scanned
+                return parseInt(last.response) === 0;  // keep looping if they chose to scan
             }
         };
 
-        // Feedback after each dig
+        // Feedback after each dig action
         const digFeedback = {
             type: 'html-button-response',
             choices: [],    // no buttons
@@ -669,10 +670,10 @@ Edit Notes (2025-09-21):
             trial_duration: 1500
         };
 
-        // Confidence slider after each dig
+        // Confidence slider after each dig action
         const confidenceTrial = {
             type: 'html-slider-response',
-            // Fill in stimulus & labels in on_start
+            // Fill in labels
             stimulus: '',
             labels: [],
             min: 0,
@@ -694,14 +695,14 @@ Edit Notes (2025-09-21):
                 // set the endpoint and midpoint labels
                 trial.labels = [
                     `Not confident that gold is at ${choice}`,
-                    `Moderately confident that gold is at ${choice}`, // may need workshoping
+                    `Moderately confident that gold is at ${choice}`, 
                     `Very confident that gold is at ${choice}`
                 ];
             },
 
             on_finish: function (data) {
                 data.confidence = data.response;
-                // ======== (#5) also tag indices on confidence row for easier joins later ========
+                // ======== also tag indices on confidence row for easier joins later ========
                 data.block_index = globalBlockIndex;
                 data.trial_index = globalTrialIndex;
             }
@@ -739,7 +740,7 @@ Edit Notes (2025-09-21):
                     d.correct_total = quizStats[qid].correct;
                     d.incorrect_total = quizStats[qid].incorrect;
 
-                    // ======== (#5) indices on instruction rows as well ========
+                    // ======== indices on instruction rows as well ========
                     d.block_index = globalBlockIndex;
                     d.trial_index = globalTrialIndex;
                 }
@@ -769,7 +770,7 @@ Edit Notes (2025-09-21):
                 },
                 data: {
                     trial_part: 'instr_feedback', qid: qid,
-                    // ======== (#5) indices on instruction feedback rows ========
+                    // ======== indices on instruction feedback rows ========
                     block_index: function () { return globalBlockIndex; },
                     trial_index: function () { return globalTrialIndex; }
                 }
@@ -779,13 +780,14 @@ Edit Notes (2025-09-21):
             return {
                 timeline: [qTrial, feedbackTrial],
                 loop_function: function (loopData) {
-                    // the first item in this mini-timeline is the question trial we just ran
+                
                     const q = loopData.values().find(t => t.trial_part === 'instr' && t.qid === qid);
-                    return !q.is_correct; // true → repeat; false → move on
+                    return !q.is_correct; 
                 }
             };
         }
 
+        // Comprehension Questions
         // Q1: which action keeps you on the same asteroid?
         const quizQ1 = makeQuizQuestion({
             qid: 'stay_put',
@@ -826,12 +828,12 @@ Edit Notes (2025-09-21):
         // Build the experiment timeline 
         const timeline = [];
 
-        // ======== (#2) Collect metadata before anything else runs ========
+        // ======== Collect metadata ========
         timeline.push({ type: 'call-function', func: collectParticipantMetadata });
 
         //Instructions now broken into multiple pages due to length. 
 
-        // Instructions as a single nav-able component (Next/Previous)
+        // Instructions 
         const instrPages = [
             `<h2>Mining Task (Draft instructions)</h2>
              <p>In this experiment, you will pretend to work for an asteroid mining company in the year 3000.</p>
@@ -872,7 +874,7 @@ Edit Notes (2025-09-21):
         });
 
 
-        // comprehension check – each question loops until correct - Joe's preference
+        // comprehension check questions 
         timeline.push(quizQ1, quizQ2, quizQ3);
 
 
@@ -888,7 +890,6 @@ Edit Notes (2025-09-21):
                 func: () => { globalBlockIndex = b; applyBlockParams(b); }
             });
 
-            // block reminder parameter reminder text
             // block reminder parameter reminder text (HUD-styled; wording unchanged)
             timeline.push({
                 type: 'html-button-response',
@@ -1160,23 +1161,22 @@ Edit Notes (2025-09-21):
             horizontal: false
         };
 
-        // ---- Helper: build a jsPsych survey trial from a set (with SOFT required) ----
-            // first press warns & highlights blanks; second press submits as-is. To disable for a specific questionnaire, set `soft_required: false` on that set.
-               // ---- Helper: build a jsPsych survey trial from a set (SOFT required, single-pass with submit intercept) ----
+        // ===== SOFT-required Questionnaire Responses =====
+            // first press warns and highlights blanks; second press submits as-is. To disable for a specific questionnaire, set `soft_required: false` on that set.
                 function makeSurveyBlock(set) {
                     const setOptions =
                         set.options ||
                         (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
                         DEFAULT_SCALE;
 
-                    // Normalize items + fixed names
+                    // Normalize items 
                     const items = set.items.map(it => (typeof it === 'string') ? { prompt: it } : it);
                     const names = items.map((_, i) => `${set.key}_${i + 1}`);
 
-                    // Randomize ONCE per questionnaire and keep that order for this block
+                    // Randomize once per questionnaire and keep that order for this block even on repeat
                     const order = jsPsych.randomization.shuffle([...Array(items.length).keys()]);
 
-                    // Map original index -> displayed index (Q#)
+                    // Map original index 
                     const displayIndexByOrig = {};
                     order.forEach((origIdx, displayIdx) => displayIndexByOrig[origIdx] = displayIdx);
 
@@ -1219,7 +1219,7 @@ Edit Notes (2025-09-21):
 
                     function esc(v) { return String(v).replace(/(["\\])/g, '\\$1'); }
 
-                    // Robust CSS escape for attribute selectors like [data-name="..."]
+                    // Robust CSS escape 
                     function cssEsc(s) {
                         return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/(["\\])/g, '\\$1');
                     }
@@ -1259,7 +1259,7 @@ Edit Notes (2025-09-21):
                                 if (radio) radio.checked = true;
                             });
 
-                            // If we previously warned, show banner and highlight only missing ones
+                            // If we previously warned, show banner and highlight only missing questions
                             if (warnedOnce && lastMissingNames.length && host && !document.getElementById('softwarn-banner')) {
                                 const banner = document.createElement('div');
                                 banner.id = 'softwarn-banner';
@@ -1270,7 +1270,7 @@ Edit Notes (2025-09-21):
                                 host.insertBefore(banner, host.firstChild);
                             }
 
-                            // Highlight any missing items from last check (target by data-name)
+                            // Highlight any missing items from last check (targeted by data-name)
                             lastMissingNames.forEach(name => {
                                 const q = document.querySelector(
                                     `.jspsych-survey-multi-choice-question[data-name="${cssEsc(name)}"]`
@@ -1285,7 +1285,7 @@ Edit Notes (2025-09-21):
                                     q.appendChild(hint);
                                 }
                                 q.offsetHeight; // force reflow so CSS repaint is obvious
-                                // q.scrollIntoView({ behavior: 'smooth', block: 'center' }); // optional
+                
                             });
 
                             installSoftMissingClears();
@@ -1310,12 +1310,12 @@ Edit Notes (2025-09-21):
                                 // First time with blanks: block advance, store state, paint warnings, and keep answers
                                 if (missing.length > 0 && !warnedOnce) {
                                     ev.preventDefault();
-                                    ev.stopImmediatePropagation();          // ← NEW: cancel jsPsych’s own handler this click
+                                    ev.stopImmediatePropagation();          
                                     warnedOnce = true;
                                     lastResponses = current;
                                     lastMissingNames = missing;
 
-                                    // Defer DOM painting one frame so styles reliably stick after the click
+                                    // Defer DOM painting one frame 
                                     requestAnimationFrame(() => {
                                         const host = document.getElementById('jspsych-content');
                                         if (host && !document.getElementById('softwarn-banner')) {
@@ -1327,7 +1327,7 @@ Edit Notes (2025-09-21):
                                             host.insertBefore(banner, host.firstChild);
                                         }
 
-                                        // Highlight any missing items from last check (target by data-name)
+                                        // Highlight any missing items from last check 
                                        requestAnimationFrame(() => {
                                             const host = document.getElementById('jspsych-content');
                                             if (host && !document.getElementById('softwarn-banner')) {
@@ -1353,11 +1353,11 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
                                                     hint.textContent = 'Please select an option, or press Next again to skip.';
                                                     q.appendChild(hint);
                                                 }
-                                                q.offsetHeight; // force reflow
+                                                q.offsetHeight; 
                                             });
                                             }); 
 
-                                            // Attach change listeners *after* .soft-missing elements exist
+                                            // Attach change listeners 
                                             installSoftMissingClears();
                                         });
 
@@ -1366,15 +1366,15 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
                                 }
 
 
-                                // Either no blanks, or second click - allow advance.
-                                // Before leaving, stash current answers so a back-navigation would still prefill.
+                                // Either no blanks, or second click allowed
+                                // Before leaving, stash current answers
                                 lastResponses = current;
                                 lastMissingNames = missing;
                             }, { once: false });
                         },
 
                         on_finish: function (data) {
-                            // Standard jsPsych parsing
+                            
                             const resp = JSON.parse(data.responses || '{}');
                             data.soft_missing_count = Object.keys(resp).length ? (names.length - Object.keys(resp).length) : names.length;
                             data.soft_warned_once = warnedOnce ? 1 : 0;
@@ -1382,7 +1382,7 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
                     };
                     
 
-                    // Return single trial. No loop_function needed.
+                    // Return single trial. 
                     return surveyTrial;
                 }
 
@@ -1499,7 +1499,7 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
                 // Trigger CSV download (kept exactly as you had it)
                 jsPsych.data.get().localSave('csv', fname);
 
-                // ---------- NEW: send per-trial rows to the Apps Script "rows" endpoint ----------
+                // ---------- send per-trial rows to the Apps Script "rows" endpoint ----------
                 try {
                     // Get an array of row objects
                     const rows = JSON.parse(jsPsych.data.get().json());
