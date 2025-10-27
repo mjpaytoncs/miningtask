@@ -356,8 +356,8 @@ Edit Notes (2025-10-26):
 
 
         // Starting Parameters (if not overridden below)
-        const N_BLOCKS = 4; // must match number of blocks in per-block overrides
-        const TRIALS_PER_BLOCK = 5;
+        const N_BLOCKS = 5; // must match number of blocks in per-block overrides
+        const TRIALS_PER_BLOCK = 50;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // scanner accuracy, probability of a correct scan
         const SCAN_COST = 1;
@@ -367,10 +367,12 @@ Edit Notes (2025-10-26):
         // ===== Per-BLOCK parameter sets  =====
             // length must equal N_BLOCKS
             const BLOCK_PARAMS = [
-                { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 },
-                { NOISE: 0.65, SCAN_COST: 5, REWARD: 50, PENALTY: 120 },
-                { NOISE: 0.70, SCAN_COST: 1, REWARD: 50, PENALTY: 90 },
-                { NOISE: 0.60, SCAN_COST: 5, REWARD: 50, PENALTY: 110 }
+                { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 },  // Baseline
+                { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 120 },  // +Penalty only
+                { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 90 },  // −Penalty only
+                { NOISE: 0.70, SCAN_COST: 1, REWARD: 50, PENALTY: 100 },  // +Noise only
+                { NOISE: 0.65, SCAN_COST: 5, REWARD: 50, PENALTY: 100 }   // +ScanCost only
+
             ];
 
 
