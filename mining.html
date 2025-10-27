@@ -14,7 +14,7 @@ Notes: Currently a draft ready for overview and further development.
 Changes/Additions: must add consent form, likely 
                    needs integration with Prolific
 
-Edit Notes (2025-09-21):
+Edit Notes (2025-10-26):
 - Implemented Versioning constant and per-row logging.
 - Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
 - Implemented File naming to include participant ID and ISO timestamp.
@@ -355,27 +355,187 @@ Edit Notes (2025-09-21):
                 'https://app.prolific.com/submissions/complete?cc=XXXXXXXX';
 
 
-        // Parameters
-        const N_BLOCKS = 1; // must match number of blocks in per-block overrides
-        const TRIALS_PER_BLOCK = 1;
+        // Starting Parameters (if not overridden below)
+        const N_BLOCKS = 4; // must match number of blocks in per-block overrides
+        const TRIALS_PER_BLOCK = 5;
         const STARTING_MONEY = 100;
         const NOISE = 0.65;   // scanner accuracy, probability of a correct scan
         const SCAN_COST = 1;
         const REWARD = 50;   // reward if correct
         const PENALTY = 100; // penalty if incorrect
 
-        // Optional per-block overrides (fall back to the defaults above)
-        const BLOCK_PARAMS = [
-            { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 }, // Block 1
-            { NOISE: 0.55, SCAN_COST: 5, REWARD: 50, PENALTY: 120 }    // Block 2
-            // Edit: we will add more objects once we decide how many blocks/trials to
-        ];
+        // ===== Per-BLOCK parameter sets  =====
+            // length must equal N_BLOCKS
+            const BLOCK_PARAMS = [
+                { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 },
+                { NOISE: 0.65, SCAN_COST: 5, REWARD: 50, PENALTY: 120 },
+                { NOISE: 0.70, SCAN_COST: 1, REWARD: 50, PENALTY: 90 },
+                { NOISE: 0.60, SCAN_COST: 5, REWARD: 50, PENALTY: 110 }
+            ];
 
-        // "Current" parameters 
-        let pNoise = NOISE;
-        let pScanCost = SCAN_COST;
-        let pReward = REWARD;
-        let pPenalty = PENALTY;
+
+
+        /* ======== Attention/Comprehension Checks ======== */
+            /* One item per block, randomly selected without replacement. */
+            const OPS_CHECK_ITEMS = [
+                // A: 100% accurate but too expensive
+                {
+                    id: 'A_100pct_costly',
+                    accuracy: 1.00, cost: 200, reward: 100, penalty: 50,
+                    prompt: `Scanner accuracy is <strong>100%</strong>; each scan costs <strong>200</strong> gold.<br>
+             Company reward: <strong>+100</strong>; penalty: <strong>−50</strong>.<br>
+             What should you do?`,
+                    choices: ['🔍 Scan', '⛏ Dig without scanning', '🙈 Ignore the scanner'],
+                    correctIndex: 1,
+                    rationale: 'Certainty costs 200 but the max benefit is +100; scanning is not worth it.'
+                },
+                // B: Free and accurate scan
+                {
+                    id: 'B_free_90pct',
+                    accuracy: 0.90, cost: 0, reward: 100, penalty: 100,
+                    prompt: `Scanner accuracy is <strong>90%</strong>; scan cost is <strong>0</strong>.<br>
+             Reward <strong>+100</strong>; penalty <strong>−100</strong>.<br>
+             What should you do first?`,
+                    choices: ['🔍 Scan', '⛏ Dig without scanning', '🙈 Ignore the scanner'],
+                    correctIndex: 0,
+                    rationale: 'Free, highly accurate information—scan before deciding.'
+                },
+                // C: 50% and costs money don’t scan
+                {
+                    id: 'C_50pct_costs',
+                    accuracy: 0.50, cost: 5, reward: 100, penalty: 100,
+                    prompt: `Scanner accuracy is <strong>50%</strong> (no better than guessing) and costs <strong>5</strong> gold.<br>
+             Reward <strong>+100</strong>; penalty <strong>−100</strong>.<br>
+             What should you do?`,
+                    choices: ['🔍 Scan', '⛏ Dig without scanning', '🙈 Ignore the scanner'],
+                    correctIndex: 1,
+                    rationale: 'A scanner at 50% accuracy adds no information; paying to scan is wasteful here.'
+                },
+                // D: High penalty, cheap good info scan
+                {
+                    id: 'D_85pct_cheap',
+                    accuracy: 0.85, cost: 1, reward: 50, penalty: 200,
+                    prompt: `Scanner accuracy <strong>85%</strong>; scan cost <strong>1</strong>.<br>
+             Reward <strong>+50</strong>; penalty <strong>−200</strong>.<br>
+             What should you do first?`,
+                    choices: ['🔍 Scan', '⛏ Dig without scanning', '🙈 Ignore the scanner'],
+                    correctIndex: 0,
+                    rationale: 'If there is a high penalty and cheap, accurate info then you should scan.'
+                },
+                // E: Free but uninformative, either is fine
+                {
+                    id: 'E_50pct_free',
+                    accuracy: 0.50, cost: 0, reward: 100, penalty: 100,
+                    prompt: `Scanner accuracy <strong>50%</strong> and <strong>free</strong>.<br>
+             Reward <strong>+100</strong>; penalty <strong>−100</strong>.<br>
+             What should you do?`,
+                    choices: ['🔍 Scan', '⛏ Dig without scanning', '🤷 Either is fine'],
+                    correctIndex: 2,
+                    rationale: 'Free but 50% adds nothing; scanning or not makes no difference.'
+                },
+                // F: 100% accurate but still not worth it
+                {
+                    id: 'F_100pct_120cost_reward100',
+                    accuracy: 1.00, cost: 120, reward: 100, penalty: 0,
+                    prompt: `Scanner accuracy <strong>100%</strong>; scan cost <strong>120</strong>.<br>
+             Reward <strong>+100</strong>; penalty <strong>0</strong>.<br>
+             What should you do?`,
+                    choices: ['🔍 Scan', '⛏ Dig without scanning', '🙈 Ignore the scanner'],
+                    correctIndex: 1,
+                    rationale: 'Certainty (120) costs more than the max reward (+100).'
+                }
+            ];
+
+            /* Builder: returns a mini-timeline that asks the check, gives feedback, and logs attempts. */
+            function makeOpsCheckTrial(item, blockIndex) {
+                let attempts = 0;
+
+                const qTrial = {
+                    type: 'html-button-response',
+                    stimulus: `
+      <div class="hud">
+        <div class="hud-header">
+          <div class="hud-balance">INCOMING TRANSMISSION — <strong>OPERATIONS CONTROL</strong></div>
+          <div class="hud-meta"><div>Systems Check</div><div>Block ${blockIndex + 1}</div></div>
+        </div>
+        <div class="hud-grid hud-stack">
+          <div class="hud-card">
+            <p>${item.prompt}</p>
+            <div class="hud-divider"></div>
+            <p style="opacity:.85">Scanner details: accuracy <strong>${Math.round(item.accuracy * 100)}%</strong>,
+               cost <strong>${item.cost}</strong>, reward <strong>+${item.reward}</strong>,
+               penalty <strong>−${item.penalty}</strong>.</p>
+            <p style="margin-top:8px;opacity:.85"><em>Confirm your understanding to continue.</em></p>
+          </div>
+        </div>
+      </div>
+    `,
+                    choices: item.choices,
+                    button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                    data: {
+                        trial_part: 'ops_check',
+                        check_id: item.id,
+                        check_accuracy: item.accuracy,
+                        check_cost: item.cost,
+                        check_reward: item.reward,
+                        check_penalty: item.penalty,
+                        block_index: blockIndex
+                    },
+                    on_finish: function (d) {
+                        attempts += 1;
+                        d.check_attempts = attempts;
+                        d.check_correct_index = item.correctIndex;
+                        d.check_response_index = d.response;
+                        d.check_is_correct = (parseInt(d.response, 10) === item.correctIndex);
+                    }
+                };
+
+                const fbTrial = {
+                    type: 'html-button-response',
+                    stimulus: function () {
+                        const last = jsPsych.data.get().last(1).values()[0];
+                        if (last.check_is_correct) {
+                            return `
+          <div class="hud">
+            <div class="hud-card">
+              <p>✅ <strong>Correct.</strong> ${item.rationale}</p>
+            </div>
+          </div>`;
+                        } else {
+                            return `
+          <div class="hud">
+            <div class="hud-card">
+              <p>❌ <strong>That’s not optimal.</strong> Consider accuracy, scan cost, and reward/penalty.</p>
+              <p style="margin-top:6px;opacity:.9">${item.rationale}</p>
+              <p style="margin-top:8px"><em>Please try again.</em></p>
+            </div>
+          </div>`;
+                        }
+                    },
+                    choices: function () {
+                        const last = jsPsych.data.get().last(1).values()[0];
+                        return last.check_is_correct ? ['Continue'] : ['Try again'];
+                    },
+                    button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                    trial_duration: null, // participant must advance
+
+                    data: {
+                        trial_part: 'ops_check_feedback',
+                        check_id: item.id,
+                        block_index: blockIndex
+                    }
+                };
+
+                return {
+                    timeline: [qTrial, fbTrial],
+                    loop_function: function (loopData) {
+                        const lastQ = loopData.values().find(t => t.trial_part === 'ops_check');
+                        // Allow ONE retry max: repeat only if incorrect and attempts === 1
+                        return !lastQ.check_is_correct && lastQ.check_attempts === 1;
+                    }
+                };
+            }
+
 
         function applyBlockParams(b) {
             const p = BLOCK_PARAMS[b] || {};
@@ -835,7 +995,7 @@ Edit Notes (2025-09-21):
 
         // Instructions 
         const instrPages = [
-            `<h2>Mining Task (Draft instructions)</h2>
+            `<h2>Asteroid Mining Task</h2>
              <p>In this experiment, you will pretend to work for an asteroid mining company in the year 3000.</p>
              <p>The company has sent mining drones all over the galaxy. Your job is to help us collect gold from asteroids.</p>
              <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
@@ -877,75 +1037,108 @@ Edit Notes (2025-09-21):
         // comprehension check questions 
         timeline.push(quizQ1, quizQ2, quizQ3);
 
+        // Pick exactly one ops-check per block, without replacement
+        const OPS_CHECKS_FOR_BLOCKS = jsPsych.randomization.shuffle(OPS_CHECK_ITEMS).slice(0, N_BLOCKS);
 
         // initialize first asteroid
         timeline.push({ type: 'call-function', func: resetAsteroid });
 
-        // blocks
-        for (let b = 0; b < N_BLOCKS; b++) {
+        // --- Randomize block order ---
+            const BLOCK_ORDER = jsPsych.randomization.shuffle(
+                Array.from({ length: N_BLOCKS }, (_, i) => i)
+            );
 
-            // set current block index so the main trial screen shows the right block number
-            timeline.push({
-                type: 'call-function',
-                func: () => { globalBlockIndex = b; applyBlockParams(b); }
-            });
+            // blocks (order randomized by BLOCK_ORDER; param sets stay bundled)
+            for (let bIdx = 0; bIdx < N_BLOCKS; bIdx++) {
+                const realBlockId = BLOCK_ORDER[bIdx];   // which row of BLOCK_PARAMS to use this block
+                const displayBlockNum = bIdx + 1;        // 1-based for UI
+                const blocksLeft = N_BLOCKS - displayBlockNum;
 
-            // block reminder parameter reminder text (HUD-styled; wording unchanged)
-            timeline.push({
-                type: 'html-button-response',
-                stimulus: function () {
-                    return `
-      <div class="hud">
-        <div class="hud-header">
-          <div class="hud-balance" id="balance">Gold: <strong>${currentMoney}</strong></div>
-          <div class="hud-meta">
-            <div>Asteroid Field ${b + 1} of ${N_BLOCKS}</div>
-            <div>Your balance carries over.</div>
-          </div>
-        </div>
-
-        <div class="hud-grid hud-stack">
-          <div class="hud-card">
-            <h3>Asteroid Field ${b + 1} of ${N_BLOCKS}</h3>
-            <p>You have now travelled to a new asteroid field.</p>
-            <div class="hud-divider"></div>
-            <p>The company has determined new values for scanner reliability, cost, reward and penalty for this asteroid field:</p>
-            <div class="hud-divider"></div>
-            <p>Scanner accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
-            <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
-            <p>Reward: <strong>+${pReward}</strong> gold</p>
-            <p>Penalty: <strong>−${pPenalty}</strong> gold</p>
-            <div class="hud-divider"></div>
-            <p>Press <strong>Continue</strong> when ready.</p>
-          </div>
-        </div>
-      </div>
-    `;
-                },
-                choices: ['Continue'],
-                // style the Continue button like the HUD controls
-                button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
-                on_load: function () {
-                    const g = document.getElementById('jspsych-html-button-response-btngroup');
-                    if (g) g.classList.add('hud-actions');
-                }
-            });
-
-
-            // trials
-            for (let t = 0; t < TRIALS_PER_BLOCK; t++) {
-                // record which trial (within the current block) we're on
+                // Apply the params for THIS randomized block (changes once per block)
                 timeline.push({
                     type: 'call-function',
-                    func: () => { globalTrialIndex = t; }
+                    func: () => {
+                        globalBlockIndex = bIdx;           // keep UI counters coherent
+                        applyBlockParams(realBlockId);     // set pNoise/pScanCost/pReward/pPenalty
+                    }
                 });
 
-                timeline.push(scanOrDigLoop);
-                timeline.push(confidenceTrial);
-                timeline.push(digFeedback);
-                timeline.push({ type: 'call-function', func: resetAsteroid });
+                // Stamp current block params onto ALL rows until they change again
+                timeline.push({
+                    type: 'call-function',
+                    func: () => {
+                        jsPsych.data.addProperties({
+                            block_display_index: globalBlockIndex, // 0-based randomized position
+                            block_real_id: realBlockId,            // index into BLOCK_PARAMS
+                            param_noise: pNoise,
+                            param_scan_cost: pScanCost,
+                            param_reward: pReward,
+                            param_penalty: pPenalty
+                        });
+                    }
+                });
+
+                // Block reminder / parameter card (HUD-styled)
+                timeline.push({
+                    type: 'html-button-response',
+                    stimulus: function () {
+                        return `
+        <div class="hud">
+          <div class="hud-header">
+            <div class="hud-balance" id="balance">Gold: <strong>${currentMoney}</strong></div>
+            <div class="hud-meta">
+              <div>Asteroid Field ${displayBlockNum} of ${N_BLOCKS}</div>
+              <div>Asteroid Fields left: ${blocksLeft}</div>
+            </div>
+          </div>
+          <div class="hud-grid hud-stack">
+            <div class="hud-card">
+              <h3>Asteroid Field ${displayBlockNum} of ${N_BLOCKS}</h3>
+              <p>You have now travelled to a new asteroid field.</p>
+              <div class="hud-divider"></div>
+              <p>The company has determined new values for scanner reliability, cost, reward and penalty for this asteroid field:</p>
+              <div class="hud-divider"></div>
+              <p>Scanner accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
+              <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
+              <p>Reward: <strong>+${pReward}</strong> gold</p>
+              <p>Penalty: <strong>−${pPenalty}</strong> gold</p>
+              <div class="hud-divider"></div>
+              <p>Press <strong>Continue</strong> when ready.</p>
+            </div>
+          </div>
+        </div>`;
+                    },
+                    choices: ['Continue'],
+                    button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                    on_load: function () {
+                        const g = document.getElementById('jspsych-html-button-response-btngroup');
+                        if (g) g.classList.add('hud-actions');
+                    }
+                });
+
+                // === Insert the ops-check ONCE per block ===
+                // Uses the pre-sampled item for this block: OPS_CHECKS_FOR_BLOCKS[bIdx]
+                timeline.push(makeOpsCheckTrial(OPS_CHECKS_FOR_BLOCKS[bIdx], bIdx));
+
+                // trials within this block (params remain constant during these trials)
+                for (let t = 0; t < TRIALS_PER_BLOCK; t++) {
+                    // Track trial index
+                    timeline.push({
+                        type: 'call-function',
+                        func: () => { globalTrialIndex = t; }
+                    });
+
+                    // One asteroid interaction (can scan repeatedly, then dig)
+                    timeline.push(scanOrDigLoop);
+                    timeline.push(confidenceTrial);
+                    timeline.push(digFeedback);
+
+                    // Prepare next asteroid
+                    timeline.push({ type: 'call-function', func: resetAsteroid });
+                }
             }
-        }
+
+
 
         // Transition page before questionnaires
             timeline.push({
@@ -1470,18 +1663,29 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
 
 
 
-        // final screen
-        timeline.push({
-            type: 'html-button-response',
-            stimulus: function () {
-                return `
+        // final screen with crisis resources for participants if needed
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: function () {
+                    return `
       <h2>Congratulations on a successful space mining adventure!</h2>
       <p>Your final balance: <strong>${currentMoney}</strong> gold.</p>
       <p>Thank you for participating in our experiments.</p>
+
+      <hr style="margin:18px 0; opacity:.4">
+
+      <h3 style="margin-top:0"><strong>If you are suicidal or in emotional distress</strong></h3>
+      <p>
+        Please consider using the <strong>988 Suicide &amp; Crisis Lifeline</strong>.
+        Call or text <strong>988</strong> or go to
+        <a href="https://988lifeline.org/chat/" target="_blank" rel="noopener noreferrer">https://988lifeline.org/chat/</a>
+        to connect with a trained crisis counselor. The Lifeline provides 24-hour, confidential support to anyone in suicidal crisis or emotional distress.
+        You can reach a specialized LGBTQI+ affirming counselor by texting “Q” to <strong>988</strong> or by calling <strong>988</strong> and pressing “3”.
+      </p>
     `;
-            },
-            choices: ['Finish and download'] // 
-        });
+                },
+                choices: ['Finish and download']
+            });
 
         // launch the experiment
         jsPsych.init({
