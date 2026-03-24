@@ -551,7 +551,7 @@ Edit Notes (2026-03-24):
 
             // Starting Parameters
         const N_BLOCKS = 5; // must match number of blocks in per-block overrides
-        const TRIALS_PER_BLOCK = 3;
+        const TRIALS_PER_BLOCK = 50;
         const STARTING_MONEY = 1000;
         const NOISE = 0.65;   // scanner accuracy, probability of a correct scan
         const SCAN_COST = 1;
@@ -1056,28 +1056,37 @@ ${digData.correct
                 },
                 trial_duration: 1500,
                 on_finish: function (data) {
-                    // stamp the same block/trial metadata pattern here too
-                    data.block_index = globalBlockIndex;
-                    data.trial_index = globalTrialIndex;
-                    data.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
-                    data.block_real_id = ACTIVE_BLOCK_REAL_ID;
-                    data.param_noise = pNoise;
-                    data.param_scan_cost = pScanCost;
-                    data.param_reward = pReward;
-                    data.param_penalty = pPenalty;
+                // stamp the same block/trial metadata pattern here too
+                data.block_index = globalBlockIndex;
+                data.trial_index = globalTrialIndex;
+                data.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
+                data.block_real_id = ACTIVE_BLOCK_REAL_ID;
+                data.param_noise = pNoise;
+                data.param_scan_cost = pScanCost;
+                data.param_reward = pReward;
+                data.param_penalty = pPenalty;
 
-                    // Save once at the end of each block using the GLOBAL trial index,
-                    // which is available here.
-                    if (globalTrialIndex === TRIALS_PER_BLOCK - 1) {
-                        saveUnsavedRowsChunk('task_block', `block_${globalBlockIndex + 1}`)
-                            .then(() => {
-                                console.log(`[Chunk save] block_${globalBlockIndex + 1} saved`);
-                            })
-                            .catch((err) => {
-                                console.error(`[Chunk save] block_${globalBlockIndex + 1} failed:`, err);
-                            });
-                    }
+                // ===== Save every 5 trials within a block, and also on the last trial =====
+                const trialNumberWithinBlock = globalTrialIndex + 1; // 1-based
+                const chunkSize = 5;
+                const totalChunks = Math.ceil(TRIALS_PER_BLOCK / chunkSize);
+
+                const isChunkBoundary = (trialNumberWithinBlock % chunkSize === 0);
+                const isLastTrialInBlock = (trialNumberWithinBlock === TRIALS_PER_BLOCK);
+
+                if (isChunkBoundary || isLastTrialInBlock) {
+                    const chunkNum = Math.ceil(trialNumberWithinBlock / chunkSize);
+                    const chunkLabel = `block_${globalBlockIndex + 1}_chunk_${chunkNum}of${totalChunks}`;
+
+                    saveUnsavedRowsChunk('task_block', chunkLabel)
+                        .then(() => {
+                            console.log(`[Chunk save] ${chunkLabel} saved`);
+                        })
+                        .catch((err) => {
+                            console.error(`[Chunk save] ${chunkLabel} failed:`, err);
+                        });
                 }
+            }
             };
 
         // Confidence slider after each dig action
