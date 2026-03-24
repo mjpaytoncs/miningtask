@@ -355,7 +355,7 @@ Edit Notes (2025-10-26):
                 'https://app.prolific.com/submissions/complete?cc=XXXXXXXX';
 
 
-        // Starting Parameters (if not overridden below)
+        // Starting Parameters (will be overridden below)
         const N_BLOCKS = 5; // must match number of blocks in per-block overrides
         const TRIALS_PER_BLOCK = 50;
         const STARTING_MONEY = 100;
@@ -559,8 +559,8 @@ Edit Notes (2025-10-26):
         let scanCount = 0;      // total scans this trial
 
         // Visual/audio cue helpers
-            let lastAction = null;         // 'scan' | 'dig' | null
-            let lastObsType = null;        // 'surface' | 'core' | null
+            let lastAction = null;         // 'scan' or 'dig' or null
+            let lastObsType = null;        // 'surface' or 'core' or null
             const ENABLE_SCAN_SOUND = true;
             let _audioCtx = null;
             function playScanPing() {
@@ -570,7 +570,7 @@ Edit Notes (2025-10-26):
                     const o = _audioCtx.createOscillator();
                     const g = _audioCtx.createGain();
                     o.type = 'sine';
-                    o.frequency.value = 1046;          // soft, bright ‘ping’
+                    o.frequency.value = 1046;          // soft, bright flash and audio ‘ping’
                     o.connect(g);
                     g.connect(_audioCtx.destination);
                     const now = _audioCtx.currentTime;
@@ -588,7 +588,7 @@ Edit Notes (2025-10-26):
         let globalTrialIndex = 0;
 
         // ======== Participant metadata collection ========
-        // Captured before any trials; added to all rows via addProperties.
+        // Captured before any trials
         let PARTICIPANT_ID = 'NA';
         let SESSION_ID = 'NA';
         let START_TIMESTAMP = new Date().toISOString();
@@ -601,7 +601,7 @@ Edit Notes (2025-10-26):
 
                 START_TIMESTAMP = new Date().toISOString();
 
-                // If Prolific ID is present these are used:
+                // If Prolific ID is present:
                 if (prolific_pid) {
                     // Use Prolific-provided IDs
                     PARTICIPANT_ID = prolific_pid;
@@ -1414,7 +1414,7 @@ Edit Notes (2025-10-26):
 
                     function esc(v) { return String(v).replace(/(["\\])/g, '\\$1'); }
 
-                    // Robust CSS escape 
+                    // Robust CSS escape in case of issues
                     function cssEsc(s) {
                         return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/(["\\])/g, '\\$1');
                     }
@@ -1454,7 +1454,7 @@ Edit Notes (2025-10-26):
                                 if (radio) radio.checked = true;
                             });
 
-                            // If we previously warned, show banner and highlight only missing questions
+                            // If we previously warned, show banner and highlight the missing questions
                             if (warnedOnce && lastMissingNames.length && host && !document.getElementById('softwarn-banner')) {
                                 const banner = document.createElement('div');
                                 banner.id = 'softwarn-banner';
@@ -1465,7 +1465,7 @@ Edit Notes (2025-10-26):
                                 host.insertBefore(banner, host.firstChild);
                             }
 
-                            // Highlight any missing items from last check (targeted by data-name)
+                            // Highlight any missing items from last check
                             lastMissingNames.forEach(name => {
                                 const q = document.querySelector(
                                     `.jspsych-survey-multi-choice-question[data-name="${cssEsc(name)}"]`
@@ -1499,7 +1499,7 @@ Edit Notes (2025-10-26):
                                     if (checked) current[name] = checked.value;
                                 });
 
-                                // Find blanks
+                                // Find blank responses for highlighting
                                 const missing = names.filter(n => !(n in current) || current[n] == null || current[n] === '');
 
                                 // First time with blanks: block advance, store state, paint warnings, and keep answers
@@ -1562,7 +1562,7 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
 
 
                                 // Either no blanks, or second click allowed
-                                // Before leaving, stash current answers
+                                // Before leaving, stash current answers in the record
                                 lastResponses = current;
                                 lastMissingNames = missing;
                             }, { once: false });
@@ -1665,7 +1665,7 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
 
 
 
-        // final screen with crisis resources for participants if needed
+        // final screen with crisis resources for participants (required by UWM IRB)
             timeline.push({
                 type: 'html-button-response',
                 stimulus: function () {
@@ -1753,7 +1753,7 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
 
                 } catch (err) {
                     console.error('[Drive save] build payload failed:', err);
-                    // Still do Prolific redirect if applicable
+                    // Still do Prolific redirect if the completion URL is present. 
                     if (prolific_pid && PROLIFIC_COMPLETION_URL) {
                         setTimeout(function () {
                             window.location.href = PROLIFIC_COMPLETION_URL;
@@ -1762,11 +1762,7 @@ You may answer them now, or press <strong>Next</strong> again to continue withou
                 }
             }
 
-
-
-
             });
-
 
     </script>
 </body>

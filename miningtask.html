@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+PPPP   AAAAA  Y   Y  TTTTTT  OOOO   N   N
+P   P  A   A   Y Y     TT   O    O  NN  N
+PPPP   AAAAA    Y      TT   O    O  N N N
+P      A   A    Y      TT   O    O  N  NN
+P      A   A    Y      TT    OOOO   N   N
+
+Author: Michael Payton
+Project: Rumination
+
+Edit Notes (2026-03-23):
+- Implemented Versioning constant and per-row logging.
+- Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
+- Implemented File naming to include participant ID and ISO timestamp.
+- Implemented Data schema completeness for dig rows (block_index, trial_index, pre_balance, post_balance, cumulative_scan_cost).
+- Removed leading spaces from PTQ preamble and items 14 and 15 to eliminate invisible indentation. No wording changed.
+- Added CSS fallback to center horizontal multi-choice options when no <ul> wrapper is present. Non-destructive and scoped to jspsych survey classes.
+- Set survey layout to vertical for Q's by adding horizontal:false at the set level. Presentation only. Data schema unchanged.
+- Added HUD style to task and loading screen
+- Added demographic questions
+- Added ghost counter "+1" to scan action
+- Added ping to scan counter
+- Questionnaire items are now optional with alert for incomplete items.
+- Saving triple tested on browswers
+- Added strategy question at the end of the experiment
+-->
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mining Task</title>
+    <script src="https://unpkg.com/jspsych@6.3.0/jspsych.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-html-button-response.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-call-function.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-html-slider-response.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-survey-multi-choice.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-survey-text.js"></script>
+    <script src="https://unpkg.com/jspsych@6.3.0/plugins/jspsych-instructions.js"></script>
+    <link href="https://unpkg.com/jspsych@6.3.0/css/jspsych.css" rel="stylesheet">
+    <style>
+        #balance {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .jspsych-btn {
+            font-size: 1em;
+            padding: 10px 20px;
+            margin: 0 5px;
+        }
+
+        /* Questionnaire Response Container */
+        .jspsych-html-slider-response-container {
+            width: 600px !important;
+            /* 600px is a good starting place, right? */
+            margin: 0 auto;
+        }
+
+        /* 2) Make the <input type="range"> fill that container */
+        .jspsych-html-slider-response-container .jspsych-slider {
+            width: 100% !important;
+        }
+
+        /* 3) Lay out all the labels in a row */
+        .jspsych-html-slider-response-text {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        /* 4) Box each label so they don’t bleed together */
+        .jspsych-html-slider-response-text span {
+            flex: 1;
+            border: 1px solid #ccc;
+            padding: 6px;
+            margin: 0 4px;
+            text-align: center;
+            background: #f9f9f9;
+            border-radius: 4px;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+
+        /* Center horizontal survey choices even when there is no <ul> wrapper */
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
+            text-align: center;
+        }
+
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
+            display: inline-flex;
+            /* keeps radio + label together */
+            align-items: center;
+            /* vertical align radio and text */
+            margin: 0 18px;
+            /* match existing spacing */
+        }
+
+        /* Gap between radio and label, non-destructive */
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
+            margin-right: 6px;
+        }
+
+        /* Force-center horizontal options even without a <ul> wrapper */
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal {
+            text-align: center !important;
+            /* center inline*/
+        }
+
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option {
+            display: inline-block !important;
+            /* sit side-by-side */
+            width: auto !important;
+            /* no 100% width blocks */
+            margin: 0 18px !important;
+            /* spacing specs*/
+            vertical-align: middle !important;
+            text-align: left !important;
+
+        }
+
+        .jspsych-survey-multi-choice .jspsych-survey-multi-choice-horizontal .jspsych-survey-multi-choice-option input {
+            margin-right: 6px !important;
+            /* small gap radio→label */
+        }
+
+        /* Makes screen have a cool "spaceship console" look*/
+        .hud {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            background: radial-gradient(120% 80% at 50% 0%, #0b1220 0%, #061019 60%);
+            color: #cfe8ff;
+            border: 1px solid rgba(80, 180, 255, .35);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow:
+                0 0 0 1px rgba(80, 180, 255, .18),
+                0 10px 28px rgba(0, 0, 0, .45),
+                inset 0 0 28px rgba(80, 180, 255, .08);
+        }
+
+        .hud-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .hud-balance {
+            font-size: 1.3rem;
+            letter-spacing: .4px;
+        }
+
+        .hud-meta {
+            display: grid;
+            grid-auto-flow: column;
+            gap: 14px;
+            align-items: center;
+            opacity: .95;
+        }
+
+        .hud-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .hud-card {
+            background: rgba(255, 255, 255, .04);
+            border: 1px solid rgba(80, 180, 255, .22);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .hud-card p {
+            margin: 6px 0;
+        }
+
+        .hud-divider {
+            height: 1px;
+            margin: 8px 0;
+            background: linear-gradient(90deg, transparent, rgba(80, 180, 255, .35), transparent);
+        }
+
+        /* subtle highlight for numbers */
+        .hud strong {
+            color: #fff;
+        }
+
+        /* keeps layout tidy on very small screens */
+        @media (max-width: 480px) {
+            .hud-meta {
+                grid-auto-flow: row;
+                gap: 6px;
+            }
+        }
+
+        /* Buttons for the Scan/Core/Surface choices on the HUD screen */
+        .hud-actions {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+
+        .hud-btn {
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(80, 180, 255, .35);
+            background: rgba(255, 255, 255, .06);
+            color: #cfe8ff;
+            box-shadow:
+                0 0 0 1px rgba(80, 180, 255, .18),
+                inset 0 0 18px rgba(80, 180, 255, .08);
+            cursor: pointer;
+        }
+
+        .hud-btn:hover {
+            background: rgba(255, 255, 255, .10);
+        }
+
+        .hud-btn:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(80, 180, 255, .55);
+        }
+
+        /* Force this HUD to stack cards vertically */
+        .hud-grid.hud-stack {
+            grid-template-columns: 1fr;
+        }
+
+        /* Make the action button group look like part of space console */
+        .hud {
+            margin-bottom: 10px;
+        }
+
+        /* small gap above the buttons */
+
+        .hud-actions {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+
+            background: rgba(8, 16, 26, .88);
+            border: 1px solid rgba(80, 180, 255, .22);
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow:
+                inset 0 0 28px rgba(80, 180, 255, .08),
+                0 10px 28px rgba(0, 0, 0, .25);
+
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Make buttons solid and console-like (this overrides any defaults) */
+        .hud-btn {
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(80, 180, 255, .35) !important;
+            background: rgba(16, 32, 48, .9) !important;
+            color: #cfe8ff !important;
+            box-shadow:
+                0 0 0 1px rgba(80, 180, 255, .18),
+                inset 0 0 18px rgba(80, 180, 255, .10);
+            cursor: pointer;
+            opacity: 1 !important;
+        }
+
+        .hud-btn:hover {
+            background: rgba(22, 44, 66, .95) !important;
+        }
+
+        .hud-btn:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(80, 180, 255, .55) !important;
+        }
+
+        /* ===== Scanner feedback ===== */
+        .scan-flash {
+            animation: scanFlash 600ms ease-out;
+        }
+
+        @keyframes scanFlash {
+            0% {
+                box-shadow: 0 0 0 2px rgba(80, 180, 255, .45), inset 0 0 26px rgba(80, 180, 255, .22);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(80, 180, 255, 0), inset 0 0 0 rgba(0, 0, 0, 0);
+            }
+        }
+
+        .count-bump {
+            animation: countBump 320ms ease-out;
+            transform-origin: 50% 60%;
+        }
+
+        @keyframes countBump {
+            0% {
+                transform: scale(1.00);
+                color: #cfe8ff;
+            }
+
+            50% {
+                transform: scale(1.25);
+                color: #ffffff;
+            }
+
+            100% {
+                transform: scale(1.00);
+                color: #cfe8ff;
+            }
+        }
+
+        .delta {
+            margin-left: 6px;
+            font-weight: 600;
+            opacity: 0;
+        }
+
+        .delta.show {
+            animation: deltaPop 820ms ease-out forwards;
+        }
+
+        @keyframes deltaPop {
+            0% {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-6px);
+            }
+        }
+
+        .new-badge {
+            margin-left: 8px;
+            font-size: .72rem;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid rgba(80, 180, 255, .35);
+            background: rgba(80, 180, 255, .14);
+        }
+
+        /* ===== Soft-required warning style for Questionnaires ===== */
+        .softwarn-banner {
+            margin: 0 0 10px 0;
+            padding: 10px 12px;
+            border: 1px solid rgba(255, 200, 0, .55);
+            background: rgba(255, 200, 0, .12);
+            border-radius: 8px;
+            color: #ffd76a;
+            font-weight: 600;
+        }
+
+        .jspsych-survey-multi-choice-question.softwarn-missing {
+            border: 1px solid rgba(255, 80, 80, .55);
+            border-radius: 8px;
+            padding: 8px 10px;
+            box-shadow: inset 0 0 0 2px rgba(255, 80, 80, .15);
+        }
+
+        /* ===== Soft-required visuals for questionnaires ===== */
+        .softwarn-banner {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin: 0 0 12px 0;
+            font-size: 0.95rem;
+        }
+
+        .jspsych-survey-multi-choice-question.soft-missing {
+            border: 1px solid rgba(220, 53, 69, .6);
+            background: rgba(220, 53, 69, .06);
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .jspsych-soft-miss-hint {
+            margin-top: 6px;
+            font-size: 0.9rem;
+            color: #b02a37;
+        }
+
+        /* Strong highlight for soft-missing items */
+        .jspsych-display-element .jspsych-survey-multi-choice-question.soft-missing {
+            border: 2px solid #dc3545 !important;
+            background: rgba(220, 53, 69, .06) !important;
+            border-radius: 8px !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="jspsych-target"></div>
+    <script>
+        // ======== Versioning ========
+        const TASK_VERSION = 'mining_task_2025-10-12_v1';
+
+        // ======== Prolific ID Integration stuff ========
+            const _url = new URL(window.location.href);
+            const PROLIFIC_PID = _url.searchParams.get("PROLIFIC_PID");
+            const PROLIFIC_STUDY = _url.searchParams.get("STUDY_ID");
+            const PROLIFIC_SESS = _url.searchParams.get("SESSION_ID");
+
+            // Expose for convenience
+            window.prolific = {
+                pid: PROLIFIC_PID,
+                study: PROLIFIC_STUDY,
+                session: PROLIFIC_SESS
+            };
+
+
+        // ======== Google Apps Script web app URL endpoint for saving ========
+        const SAVE_URL = 'https://script.google.com/macros/s/AKfycbz9GoKyRM6eojhuKEbxt3SAyodGB4muLMBcfxwalcq08wlpdNLC-7Eub-S-nTBnHTHVWw/exec';   // Script endpoint here: e.g., https://script.google.com/macros/s/AKfycb.../exec
+
+
+        // ========  Prolific completion URL ======== 
+        // (Code from Prolific)
+        const PROLIFIC_COMPLETION_URL =
+        'https://app.prolific.com/submissions/complete?cc=C1415QQK';
+
+        // A backup in case of Prolific issues
+        function hasRealCompletionUrl(u) {
+                return (typeof u === 'string') && (u.indexOf('cc=') !== -1) && (u.indexOf('XXXXXXXX') === -1);
+            }
+
+        function showEndScreen(html) {
+                const el = document.getElementById('jspsych-target');
+                if (el) el.innerHTML = html;
+            }
+
+
+        function postJsonTextPlainWithTimeout(url, payloadObj, timeoutMs) {
+                // text/plain avoids CORS 
+                const controller = new AbortController();
+                const t = setTimeout(() => controller.abort(), timeoutMs);
+
+                return fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payloadObj),
+                    signal: controller.signal,
+                    keepalive: true
+                }).finally(() => clearTimeout(t));
+            }
+
+
+            // Starting Parameters
+        const N_BLOCKS = 5; // must match number of blocks in per-block overrides
+        const TRIALS_PER_BLOCK = 1;
+        const STARTING_MONEY = 1000;
+        const NOISE = 0.65;   // scanner accuracy, probability of a correct scan
+        const SCAN_COST = 1;
+        const REWARD = 50;   // reward if correct
+        const PENALTY = 100; // penalty if incorrect
+
+        // Per-block params (initialized to defaults so first render won't crash)
+            let pNoise = NOISE;
+            let pScanCost = SCAN_COST;
+            let pReward = REWARD;
+            let pPenalty = PENALTY;
+
+
+        // ===== Per-BLOCK parameter sets  =====
+        // length must equal N_BLOCKS
+        const BLOCK_PARAMS = [
+            { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 100 },  // Baseline
+            { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 120 },  // +Penalty only
+            { NOISE: 0.65, SCAN_COST: 1, REWARD: 50, PENALTY: 90 },  // −Penalty only
+            { NOISE: 0.70, SCAN_COST: 1, REWARD: 50, PENALTY: 100 },  // +Noise only
+            { NOISE: 0.65, SCAN_COST: 5, REWARD: 50, PENALTY: 100 }   // +ScanCost only
+
+        ];
+
+        /* ======== Attention/Comprehension Checks ======== */
+        /* One item per block, randomly selected without replacement. */
+        const OPS_CHECK_ITEMS = [
+            // A: 100% accurate but too expensive
+            {
+                id: 'A_100pct_costly',
+                accuracy: 1.00, cost: 200, reward: 100, penalty: 50,
+                prompt: `Scanner accuracy is <strong>100%</strong>; each scan costs <strong>200</strong> gold.<br>
+             Company reward: <strong>+100</strong>; penalty: <strong>−50</strong>.<br>
+             What should you do?`,
+                choices: ['🔍 Scan', '⛏ Dig without scanning'],
+                correctIndex: 1,
+                rationale: 'Scanning costs -200 but the max benefit is +100; even perfect scanning is not worth it at that cost.'
+            },
+            // B: Free and accurate scan
+            {
+                id: 'B_streak_90pct',
+                accuracy: 0.90, cost: 5, reward: 100, penalty: 100,
+                prompt: `Scanner accuracy is <strong>90%</strong>; scan cost is <strong>5</strong>.<br>
+                But the last 5 asteroids in this field have had gold in the core.<br>
+             Reward <strong>+65</strong>; penalty <strong>−100</strong>.<br>
+             What should you do?`,
+                choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
+                correctIndex: 0,
+                rationale: 'Scan, the location of gold in one asteroid has no effect on the location of gold in another asteroid.'
+            },
+            // C: 50% and costs money don’t scan
+            {
+                id: 'C_50pct_costs',
+                accuracy: 0.50, cost: 5, reward: 100, penalty: 100,
+                prompt: `Scanner accuracy is <strong>50%</strong> (no better than guessing) and costs <strong>5</strong> gold.<br>
+             Reward <strong>+100</strong>; penalty <strong>−100</strong>.<br>
+             What should you do?`,
+                choices: ['🔍 Scan', '⛏ Dig without scanning'],
+                correctIndex: 1,
+                rationale: 'A scanner at 50% accuracy adds no information; paying to scan is wasteful here.'
+            },
+            // D: High penalty, cheap good info scan
+            {
+                id: 'D_85pct_cheap',
+                accuracy: 0.85, cost: 1, reward: 50, penalty: 200,
+                prompt: `Scanner accuracy <strong>85%</strong>; scan cost <strong>1</strong>.<br>
+             Reward <strong>+50</strong>; penalty <strong>−200</strong>.<br>
+             What should you do first?`,
+                choices: ['🔍 Scan', '⛏ Dig in core', '🌐 Dig at Surface'],
+                correctIndex: 0,
+                rationale: 'If there is a high penalty and cheap, accurate info then you should scan.'
+            },
+            // E: Free but uninformative, either is fine
+            {
+                id: 'E_50pct_free',
+                accuracy: 0.50, cost: 0, reward: 100, penalty: 100,
+                prompt: `Scanner accuracy <strong>50%</strong> and <strong>free</strong>.<br>
+             Reward <strong>+100</strong>; penalty <strong>−100</strong>.<br>
+             What should you do?`,
+                choices: ['🔍 Scan', '⛏ Dig without scanning'],
+                correctIndex: 1,
+                rationale: 'Free but 50% adds nothing; scanning or not makes no difference.'
+            },
+            // F: 100% accurate but still not worth it
+            {
+                id: 'F_100pct_120cost_reward100',
+                accuracy: 1.00, cost: 120, reward: 100, penalty: 0,
+                prompt: `Scanner accuracy <strong>100%</strong>; scan cost <strong>120</strong>.<br>
+             Reward <strong>+100</strong>; penalty <strong>0</strong>.<br>
+             What should you do?`,
+                choices: ['🔍 Scan', '⛏ Dig without scanning'],
+                correctIndex: 1,
+                rationale: 'Certainty (120) costs more than the max reward (+100).'
+            }
+        ];
+
+        /* Builder: returns a mini-timeline that asks the check, gives feedback, and logs attempts. */
+        function makeOpsCheckTrial(item, blockIndex) {
+            let attempts = 0;
+
+            const qTrial = {
+                type: 'html-button-response',
+                stimulus: `
+      <div class="hud">
+        <div class="hud-header">
+          <div class="hud-balance">INCOMING TRANSMISSION — <strong>OPERATIONS CONTROL</strong></div>
+          <div class="hud-meta"><div>Systems Check</div><div>Block ${blockIndex + 1}</div></div>
+        </div>
+        <div class="hud-grid hud-stack">
+          <div class="hud-card">
+            <p>${item.prompt}</p>
+            <div class="hud-divider"></div>
+            <p style="opacity:.85">Scanner details: accuracy <strong>${Math.round(item.accuracy * 100)}%</strong>,
+               cost <strong>${item.cost}</strong>, reward <strong>+${item.reward}</strong>,
+               penalty <strong>−${item.penalty}</strong>.</p>
+            <p style="margin-top:8px;opacity:.85"><em>You must confirm your understanding to continue.</em></p>
+          </div>
+        </div>
+      </div>
+    `,
+                block_display_index: function () { return ACTIVE_BLOCK_DISPLAY_INDEX; },
+                block_real_id: function () { return ACTIVE_BLOCK_REAL_ID; },
+                param_noise: function () { return pNoise; },
+                param_scan_cost: function () { return pScanCost; },
+                param_reward: function () { return pReward; },
+                param_penalty: function () { return pPenalty; }, 
+                choices: item.choices,
+                button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                data: {
+                    trial_part: 'ops_check',
+                    check_id: item.id,
+                    check_accuracy: item.accuracy,
+                    check_cost: item.cost,
+                    check_reward: item.reward,
+                    check_penalty: item.penalty,
+
+                    // more robust stamps for saving
+                    block_index: function () { return globalBlockIndex; },              // randomized position
+                    block_display_index: function () { return ACTIVE_BLOCK_DISPLAY_INDEX; },
+                    block_real_id: function () { return ACTIVE_BLOCK_REAL_ID; },
+                    param_noise: function () { return pNoise; },
+                    param_scan_cost: function () { return pScanCost; },
+                    param_reward: function () { return pReward; },
+                    param_penalty: function () { return pPenalty; },
+                    trial_index: function () { return globalTrialIndex; }
+                },
+                on_finish: function (d) {
+                    attempts += 1;
+                    d.check_attempts = attempts;
+                    d.check_correct_index = item.correctIndex;
+                    d.check_response_index = d.response;
+                    d.check_is_correct = (parseInt(d.response, 10) === item.correctIndex);
+
+                    // stamp again as plain values as a guarentee
+                    d.block_index = globalBlockIndex;
+                    d.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
+                    d.block_real_id = ACTIVE_BLOCK_REAL_ID;
+                    d.param_noise = pNoise;
+                    d.param_scan_cost = pScanCost;
+                    d.param_reward = pReward;
+                    d.param_penalty = pPenalty;
+                    d.trial_index = globalTrialIndex;
+
+                    d.ops_check_passed = d.check_is_correct ? 1 : 0;
+                }
+            };
+
+            const fbTrial = {
+                type: 'html-button-response',
+                stimulus: function () {
+                    const last = jsPsych.data.get().last(1).values()[0];
+                    if (last.check_is_correct) {
+                        return `
+          <div class="hud">
+            <div class="hud-card">
+              <p>✅ <strong>Correct.</strong> ${item.rationale}</p>
+            </div>
+          </div>`;
+                    } else {
+                        return `
+          <div class="hud">
+            <div class="hud-card">
+              <p>❌ <strong>That’s not optimal.</strong> Consider accuracy, scan cost, and reward/penalty.</p>
+              <p style="margin-top:6px;opacity:.9">${item.rationale}</p>
+              <p style="margin-top:8px"><em>Please try again.</em></p>
+            </div>
+          </div>`;
+                    }
+                },
+                choices: function () {
+                    const last = jsPsych.data.get().last(1).values()[0];
+                    return last.check_is_correct ? ['Continue'] : ['Try again'];
+                },
+                button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                trial_duration: null, // participant must advance
+
+                data: {
+                    trial_part: 'ops_check_feedback',
+                    check_id: item.id,
+
+                    //robust stamps
+                    block_index: function () { return globalBlockIndex; },
+                    block_display_index: function () { return ACTIVE_BLOCK_DISPLAY_INDEX; },
+                    block_real_id: function () { return ACTIVE_BLOCK_REAL_ID; },
+                    param_noise: function () { return pNoise; },
+                    param_scan_cost: function () { return pScanCost; },
+                    param_reward: function () { return pReward; },
+                    param_penalty: function () { return pPenalty; },
+                    trial_index: function () { return globalTrialIndex; }
+                }
+            };
+
+            return {
+                timeline: [qTrial, fbTrial],
+                loop_function: function (loopData) {
+                    const lastQ = loopData.values().find(t => t.trial_part === 'ops_check');
+                    // Allow ONE retry max: repeat only if incorrect and attempts === 1
+                    return !lastQ.check_is_correct && lastQ.check_attempts === 1;
+                }
+            };
+        }
+
+
+        function applyBlockParams(b) {
+            const p = BLOCK_PARAMS[b] || {};
+            pNoise = (p.NOISE !== undefined) ? p.NOISE : NOISE;
+            pScanCost = (p.SCAN_COST !== undefined) ? p.SCAN_COST : SCAN_COST;
+            pReward = (p.REWARD !== undefined) ? p.REWARD : REWARD;
+            pPenalty = (p.PENALTY !== undefined) ? p.PENALTY : PENALTY;
+        }
+
+
+        // Starting Counters
+        let currentMoney = STARTING_MONEY;
+        let trueState;    // gold is in either at the "surface" or in the "core"
+        let scanMsg;      // message given by scanner
+        let lastDig = null;
+        let lastCorrect = null;
+        let scanCoreCount = 0;
+        let scanSurfaceCount = 0;
+        let scanCount = 0;      // total scans this trial
+
+        // Visual/audio cue helpers
+        let lastAction = null;         // 'scan' or 'dig' or null
+        let lastObsType = null;        // 'surface' or 'core' or null
+        const ENABLE_SCAN_SOUND = true;
+        let _audioCtx = null;
+        function playScanPing() {
+            if (!ENABLE_SCAN_SOUND) return;
+            try {
+                _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                const o = _audioCtx.createOscillator();
+                const g = _audioCtx.createGain();
+                o.type = 'sine';
+                o.frequency.value = 1046;          // soft, bright flash and audio ‘ping’
+                o.connect(g);
+                g.connect(_audioCtx.destination);
+                const now = _audioCtx.currentTime;
+                g.gain.setValueAtTime(0.0001, now);
+                g.gain.exponentialRampToValueAtTime(0.09, now + 0.01);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+                o.start(now);
+                o.stop(now + 0.18);
+            } catch (_) { /* ignore */ }
+        }
+
+
+        // track where we are in blocks/trials
+        let globalBlockIndex = 0;
+        let globalTrialIndex = 0;
+
+        // Track the currently-active randomized block position and the underlying param-set id
+            let ACTIVE_BLOCK_DISPLAY_INDEX = 0;  // 0..N_BLOCKS-1 in randomized order
+            let ACTIVE_BLOCK_REAL_ID = 0;        // index into BLOCK_PARAMS (the “true” param set)
+
+        // ======== Participant metadata collection ========
+        // Captured before any trials
+        let PARTICIPANT_ID = 'NA';
+        let SESSION_ID = 'NA';
+        let START_TIMESTAMP = new Date().toISOString();
+
+        function collectParticipantMetadata() {
+                START_TIMESTAMP = new Date().toISOString();
+
+                // Require Prolific in production but allows local tests as fallback
+                const isProlific = !!PROLIFIC_PID;
+                PARTICIPANT_ID = PROLIFIC_PID || 'LOCAL_TEST';
+                SESSION_ID = PROLIFIC_SESS || 'LOCAL_SESSION';
+
+                jsPsych.data.addProperties({
+                    task_version: TASK_VERSION,
+                    participant_id: PARTICIPANT_ID,        // keep your existing column name
+                    prolific_pid: PROLIFIC_PID || 'NA',
+                    prolific_study_id: PROLIFIC_STUDY || 'NA',
+                    prolific_session_id: PROLIFIC_SESS || 'NA',
+                    start_timestamp: START_TIMESTAMP,
+                    source: PROLIFIC_PID ? 'prolific' : 'direct_link'
+                });
+
+            }
+
+
+        // Trial: scan vs dig
+        const scanOrDig = {
+            type: 'html-button-response',
+            stimulus: function () {
+                const blocksLeft = N_BLOCKS - (globalBlockIndex + 1);
+                const trialsDone = globalTrialIndex + 1;
+                const trialsLeft = TRIALS_PER_BLOCK - trialsDone;
+
+                const justScanned = (lastAction === 'scan');
+                const scannerCardClass = `hud-card ${justScanned ? 'scan-flash' : ''}`;
+                const coreBumpClass = justScanned && lastObsType === 'core' ? 'count-bump' : '';
+                const surfBumpClass = justScanned && lastObsType === 'surface' ? 'count-bump' : '';
+                const coreDeltaClass = justScanned && lastObsType === 'core' ? 'delta show' : 'delta';
+                const surfDeltaClass = justScanned && lastObsType === 'surface' ? 'delta show' : 'delta';
+
+                return `
+    <div class="hud">
+      <div class="hud-header">
+        <div class="hud-balance" id="balance">Gold: <strong>${currentMoney}</strong></div>
+        <div class="hud-meta">
+          <div>Asteroid Field ${globalBlockIndex + 1} of ${N_BLOCKS} (Asteroid Fields left: ${blocksLeft})</div>
+          <div>Asteroid ${trialsDone} of ${TRIALS_PER_BLOCK} (Asteroids left: ${trialsLeft})</div>
+        </div>
+      </div>
+
+      <div class="hud-grid hud-stack">
+        <!-- Parameters card FIRST, so it appears on top -->
+        <div class="hud-card">
+          <p>Scan accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
+          <div class="hud-divider"></div>
+          <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
+          <div class="hud-divider"></div>
+          <p>Gold for correct dig: <strong>${pReward}</strong> gold</p>
+          <div class="hud-divider"></div>
+          <p>Gold lost for incorrect dig: <strong>${pPenalty}</strong> gold</p>
+        </div>
+
+        <!-- Scanner readout card SECOND -->
+        <div class="${scannerCardClass}">
+          <p>
+            Current scanner observation:
+            <strong>${scanMsg || 'None'}</strong>
+            ${(lastAction === 'scan' && scanMsg) ? '<span class="new-badge">NEW</span>' : ''}
+          </p>
+          <div class="hud-divider"></div>
+          <p>
+            Total Scans indicating Core:
+            <strong class="${coreBumpClass}">${scanCoreCount}</strong>
+            <span class="${coreDeltaClass}">+1</span>
+          </p>
+          <p>
+            Total Scans indicating Surface:
+            <strong class="${surfBumpClass}">${scanSurfaceCount}</strong>
+            <span class="${surfDeltaClass}">+1</span>
+          </p>
+        </div>
+
+      </div>
+    </div>
+    `;
+            },
+
+            // lables for action buttons
+            choices: ['🔍 Scan', '⛏ Dig in Core', '🌐 Dig at Surface'],
+
+            // HUD-styled buttons 
+            button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+            
+
+            // center the button group under the HUD
+            on_load: function () {
+                const g = document.getElementById('jspsych-html-button-response-btngroup');
+                if (g) g.classList.add('hud-actions');
+            },
+
+            
+
+            on_finish: function (data) {
+                const choice = parseInt(data.response);
+
+                 // --- stamp per-row block params (prevents overwrite issues) ---
+                data.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
+                data.block_real_id = ACTIVE_BLOCK_REAL_ID;
+                data.param_noise = pNoise;
+                data.param_scan_cost = pScanCost;
+                data.param_reward = pReward;
+                data.param_penalty = pPenalty;
+
+                // --- stamp true state for analysis ---
+                data.true_state = trueState;
+
+                data.block_index = globalBlockIndex;
+                data.trial_index = globalTrialIndex;
+
+                if (choice === 0) {
+                    // -------- SCAN --------
+                    data.scan = true;
+                    // track pre/post for completeness (scan row)
+                    const pre_balance_scan = currentMoney;
+                    currentMoney -= pScanCost;
+                    const post_balance_scan = currentMoney;
+                    data.pre_balance = pre_balance_scan;
+                    data.post_balance = post_balance_scan;
+
+                    // noisy observation
+                    const obs = (Math.random() < pNoise)
+                        ? trueState
+                        : (trueState === 'surface' ? 'core' : 'surface');
+
+                    lastAction = 'scan';
+                    lastObsType = obs;
+
+                    scanMsg = (obs === 'surface')
+                        ? 'Scanners suggest there is gold at the surface'
+                        : 'Scanners suggest there is gold in the core';
+
+                    // log scan observation explicitly (makes analysis much easier)
+                    data.scan_obs = obs;
+                    data.scan_msg = scanMsg;
+                    playScanPing();              // optional soft ping
+
+                    // update counters
+                    if (obs === 'surface') {
+                        scanSurfaceCount++;
+                    } else {
+                        scanCoreCount++;
+                    }
+                    scanCount++;
+                } else {
+                    // -------- DIG --------
+                    lastAction = 'dig';
+                    lastObsType = null;
+
+                    data.scan = false;
+
+                    // ======== pre/post balance and cumulative scan cost on dig row ========
+                    const pre_balance = currentMoney; // before applying reward/penalty
+                    const dug = (choice === 1) ? 'core' : 'surface';
+                    const correct = (dug === trueState);
+
+                    if (correct) {
+                        currentMoney += pReward;
+                    } else {
+                        currentMoney -= pPenalty;
+                    }
+
+                    const post_balance = currentMoney;
+                    const cumulative_scan_cost = scanCount * pScanCost;
+
+                    data.correct = correct;
+                    data.delta = correct ? pReward : -pPenalty;
+                    data.dug = dug;
+                    data.scanCount = scanCount;  // total scans this trial
+                    data.scanCoreCount = scanCoreCount;
+                    data.scanSurfaceCount = scanSurfaceCount;
+
+                    // add completeness fields
+                    data.pre_balance = pre_balance;
+                    data.post_balance = post_balance;
+                    data.cumulative_scan_cost = cumulative_scan_cost;
+                }
+                // record scan counters every time
+                data.scanCount = scanCount;
+                data.scanCoreCount = scanCoreCount;
+                data.scanSurfaceCount = scanSurfaceCount;
+
+            }
+        };
+
+
+
+        // loop until participant chooses to dig, allows infinite scanning
+        const scanOrDigLoop = {
+            timeline: [scanOrDig],
+            loop_function: function (data) {
+                const last = data.values().slice(-1)[0];
+                return parseInt(last.response) === 0;  // keep looping if they chose to scan
+            }
+        };
+
+        // Feedback after each dig action
+        const digFeedback = {
+            type: 'html-button-response',
+            choices: [],    // no buttons
+            stimulus: function () {
+                // Grab all data, reverse it, and find the first trial where we actually dug
+                const allData = jsPsych.data.get().values();
+                const digData = allData
+                    .slice()                      // copy
+                    .reverse()                    // last trial first
+                    .find(trial => trial.dug);    // only dig trials have `dug` defined
+
+                return `
+      <div id="balance">Gold: <strong>${currentMoney}</strong></div>
+      ${digData.correct
+                        ? `<p>You struck gold! (+${pReward})</p>`
+                        : `<p>Better luck next time! (−${pPenalty})</p>`
+                    }
+    `;
+            },
+            trial_duration: 1500
+        };
+
+        // Confidence slider after each dig action
+        const confidenceTrial = {
+            type: 'html-slider-response',
+            // Fill in labels
+            stimulus: '',
+            labels: [],
+            min: 0,
+            max: 100,
+            start: 50,
+            step: 1,
+            require_movement: true,
+            data: { trial_part: 'confidence' },
+
+            on_start: function (trial) {
+                // grab all data, reverse, and find the most recent dig trial
+                const all = jsPsych.data.get().values();
+                const digData = all.slice().reverse().find(t => t.dug !== undefined);
+                const choice = digData.dug; // either "core" or "surface"
+
+                // set the question text
+                trial.stimulus = `<p>How confident are you that the gold is at <strong>${choice}</strong>?</p>`;
+
+                // set the endpoint and midpoint labels
+                trial.labels = [
+                    `Not confident that gold is at ${choice}`,
+                    `Moderately confident that gold is at ${choice}`,
+                    `Very confident that gold is at ${choice}`
+                ];
+            },
+
+            on_finish: function (data) {
+                data.confidence = data.response;
+
+                data.block_index = globalBlockIndex;
+                data.trial_index = globalTrialIndex;
+
+                // stamp per-row block params
+                data.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
+                data.block_real_id = ACTIVE_BLOCK_REAL_ID;
+                data.param_noise = pNoise;
+                data.param_scan_cost = pScanCost;
+                data.param_reward = pReward;
+                data.param_penalty = pPenalty;
+
+                // stamp true state
+                data.true_state = trueState;
+            }
+        };
+
+
+        // Comprehension Check
+        // running tallies saved across attempts and will be saved in csv output
+        const quizStats = {
+            stay_put: { correct: 0, incorrect: 0 },
+            noise_def: { correct: 0, incorrect: 0 },
+            scan_tradeoff: { correct: 0, incorrect: 0 },
+            independence_base_rate: { correct: 0, incorrect: 0 } 
+        };
+
+        // helper function: creates a single-question loop with feedback and logging for csv
+        function makeQuizQuestion({ qid, promptHTML, choices, correctIndex, feedbackHTML }) {
+            let attempts = 0; // attempts for this question (resets if page reloads)
+
+            const qTrial = {
+                type: 'html-button-response',
+                stimulus: promptHTML,
+                choices: choices,
+                data: { trial_part: 'instr', qid: qid },
+                on_finish: function (d) {
+                    attempts += 1;
+                    d.attempt = attempts;
+                    d.correct_index = correctIndex;
+                    d.is_correct = (d.response === correctIndex);
+
+                    // update totals
+                    if (d.is_correct) quizStats[qid].correct += 1;
+                    else quizStats[qid].incorrect += 1;
+
+                    // copy running totals into this row so they get added to the CSV
+                    d.correct_total = quizStats[qid].correct;
+                    d.incorrect_total = quizStats[qid].incorrect;
+
+                    // ======== indices on instruction rows as well ========
+                    d.block_index = globalBlockIndex;
+                    d.trial_index = globalTrialIndex;
+                }
+            };
+
+            const feedbackTrial = {
+                type: 'html-button-response',
+                choices: function () {
+                    const last = jsPsych.data.get().last(1).values()[0];
+                    return last.is_correct ? [] : ['Try again'];
+                },
+                stimulus: function () {
+                    const last = jsPsych.data.get().last(1).values()[0]; // the question we just answered
+                    if (last.is_correct) {
+                        return `<p>✅ Correct.</p>`;
+                    } else {
+                        return `
+                        <p>❌ Incorrect.</p>
+                        <div style="margin-top:8px">${feedbackHTML}</div>
+                        <p style="margin-top:8px">Please select the correct answer to continue.</p>
+                        `;
+                    }
+                },
+                trial_duration: function () {
+                    const last = jsPsych.data.get().last(1).values()[0];
+                    return last.is_correct ? 900 : null; // auto-advance if correct; else wait for button
+                },
+                data: {
+                    trial_part: 'instr_feedback', qid: qid,
+                    // ======== indices on instruction feedback rows ========
+                    block_index: function () { return globalBlockIndex; },
+                    trial_index: function () { return globalTrialIndex; }
+                }
+            };
+
+            // repeat forever until the questions get answered correctly
+            return {
+                timeline: [qTrial, feedbackTrial],
+                loop_function: function (loopData) {
+
+                    const q = loopData.values().find(t => t.trial_part === 'instr' && t.qid === qid);
+                    return !q.is_correct;
+                }
+            };
+        }
+
+        // Comprehension Questions
+        // Q1: which action keeps you on the same asteroid?
+        const quizQ1 = makeQuizQuestion({
+            qid: 'stay_put',
+            promptHTML: `<p><strong>1.</strong> Which action keeps you on the same asteroid and gathers information about where to dig?</p>`,
+            choices: ['🔍 Scan', '⛏ Dig Core', '🌐 Dig Surface'],
+            correctIndex: 0,
+            feedbackHTML: `<p>Incorrect. Scanning both gives you information about the asteroid and does <em>not</em> end the trial. It provides some noisy information at a cost set by the company. You can <em>scan</em> repeatedly on the same asteroid.</p>`
+        });
+
+        // Q2: meaning of “scanner accuracy 70%”
+        const quizQ2 = makeQuizQuestion({
+            qid: 'noise_def',
+            promptHTML: `<p><strong>2.</strong> Our scanners are <strong>UNRELIABLE</strong>. Suppose the scanner accuracy is 70%. What does this mean?</p>`,
+            choices: [
+                'I can trust that the scanner is probably correct all of the time.',
+                'The scanner is not reliable at all, so I should ignore the scanning results.',
+                'The scanner is only giving the correct location of the gold 70% of the time.'
+            ],
+            correctIndex: 2,
+            feedbackHTML: `<p>Incorrect. The “70%” means the scanner’s message matches the true gold location 70% of the time.</p>`
+        });
+
+        // Q3: scanning trade-off
+        const quizQ3 = makeQuizQuestion({
+            qid: 'scan_tradeoff',
+            promptHTML: `<p><strong>3.</strong> Suppose you got three "surface" readings in a row and no "core" readings. Should you dig at the surface or keep scanning?</p>`,
+            choices: [
+                'Yes, that is a strong indication of gold on the surface.',
+                'No, the scanner is unreliable, so you should ignore it.',
+                'Maybe. It depends on the scanner reliability, the cost of a scan, and the company reward and punishment.'
+            ],
+            correctIndex: 2,
+            feedbackHTML: `<p>Incorrect. The right time to dig depends on scanner accuracy, scan cost, and your reward/penalty structure. You should not just rely on the last few scanner readings.</p>`
+        });
+
+        const quizQ4 = makeQuizQuestion({
+                qid: 'independence_base_rate',
+                promptHTML: `<p><strong>4.</strong> Suppose the last <strong>four</strong> asteroids in this asteroid field had gold in the core.
+                What is the chance that the <strong>next asteroid</strong> also has gold in the core?</p>`,
+                choices: [
+                    'More than 50% because there has been a streak of core locations.',
+                    'Less than 50% because streaks tend to reverse.',
+                    'Exactly 50%, because the location of gold in one asteroid has no impact on the location of gold in another asteroid.'
+                ],
+                correctIndex: 2,
+                feedbackHTML: `<p>Incorrect. Each asteroid is independent and has a 50% chance of core and 50% chance of surface, regardless of previous outcomes. Streaks do not change the probability.</p>`
+            });
+
+
+
+
+        // Build the experiment timeline 
+        const timeline = [];
+
+        // Ensure every csv row carries key Prolific info fields
+            jsPsych.data.addProperties({
+                prolific_pid: PROLIFIC_PID || 'NA',
+                prolific_study_id: PROLIFIC_STUDY || 'NA',
+                prolific_session_id: PROLIFIC_SESS || 'NA',
+                task_version: TASK_VERSION
+            });
+
+
+        // ======== Collect metadata ========
+        timeline.push({ type: 'call-function', func: collectParticipantMetadata });
+
+        //Instructions now broken into multiple pages due to length. 
+
+        // Instructions 
+        const instrPages = [
+            `<h2>Asteroid Mining Task</h2>
+             <p>In this experiment, your task is to work for a fictitious asteroid mining company in the year 3000.</p>
+             <p>The company has sent mining drones all over the galaxy. Your job is to help them collect gold from asteroids.</p>
+             <p>Each asteroid a mining drone lands on has gold at the surface or in the core.</p>
+             <p>But the company does not know whether gold is near the surface or in the core.</p>`,
+
+            `<p>On each trial, you must decide whether to dig near the surface or into the core.</p>
+             <p>If you dig where the gold is located, then you will be rewarded. However, the asteroids are <strong>fragile.</strong></p> 
+             <p>So, once you dig, it will break apart and any remaining gold becomes unsalvageable.</p>  
+             <p>If you dig in the incorrect location, you cannot get the gold and the company will penalize you by lowering your compensation.</p>  
+             <p>To help you, you can pay a small amount to scan the asteroid. Unfortunately, the scanners are <strong>unreliable.</strong></p> 
+             <p>You can scan each asteroid as many times as you want. But, scanning is costly and so, the company charges you a given amount per scan.</p>`,
+
+            `<p>You start with <strong>${STARTING_MONEY}</strong> gold.</p>
+             <p>At the start of a trial, you land on an asteroid. You will have the following options:</p>
+             <p>🔍 <strong>Scan</strong> (cost depends on the specific asteroid field): you get noisy info about the location of the gold.</p>
+             <p>⛏ <strong>Dig Core</strong> or 🌐 <strong>Dig Surface</strong>.</p>
+             <p>If you select the correct location to dig: You win gold.</p> 
+             <p>If you select the incorrect location to dig: You lose gold.</p>
+             <p>Scan as many times as you like to gain information about the gold location.</p>`,
+
+            `<p>You may only dig once per asteroid, so make sure you have enough information before choosing a location.</p>
+             <p>The scanner's reliability, scanning cost, reward, and penalty vary across asteroids. These values will be displayed at the start of each trial.</p>
+             <p>Your compensation for the experiment partially depends on your <strong>total gold balance.</strong></p>`,
+
+             `<h3>Important: Each Asteroid Is Independent</h3>
+            <p>On every asteroid, the gold is equally likely to be in the <strong>core</strong> or at the <strong>surface</strong>.</p>
+            <p>This means there is always a <strong>50% chance</strong> it is in the core and a <strong>50% chance</strong> it is at the surface.</p>
+            <p>The location of the gold on one asteroid does <strong>not</strong> affect the next asteroid.</p>
+            <p>For example, even if the last four asteroids had gold in the core, the next asteroid still has only a 50% chance of gold in the core and 50% on the surface.</p>
+            <p>There are no patterns across asteroids. </p>
+            <p>Please make sure you understand this before continuing.</p>`,
+
+
+            `<p>Before you begin the first asteroid field, you will complete a short review to ensure you understand the task.</p>
+             <p>Press <strong>Next</strong> to begin. Press <strong>Previous</strong> to review.</p>`
+        ];
+
+        timeline.push({
+            type: 'instructions',
+            pages: instrPages,
+            show_clickable_nav: true,
+            allow_backward: true,
+            button_label_next: 'Next',
+            button_label_previous: 'Previous'
+        });
+
+
+        // comprehension check questions 
+        timeline.push(quizQ1, quizQ2, quizQ3, quizQ4);
+
+        // Pick exactly one ops-check per block, without replacement
+        const OPS_CHECKS_FOR_BLOCKS = jsPsych.randomization.shuffle(OPS_CHECK_ITEMS).slice(0, N_BLOCKS);
+
+        // On new asteroid, reset observation and counters
+            function resetAsteroid() {
+                trueState = (Math.random() < 0.5) ? 'surface' : 'core';
+                scanMsg = null;
+                scanCoreCount = 0;
+                scanSurfaceCount = 0;
+                scanCount = 0;
+                lastAction = null;
+                lastObsType = null;
+            }
+
+        // initialize first asteroid
+        timeline.push({ type: 'call-function', func: resetAsteroid });
+
+        // --- Randomize block order ---
+        const BLOCK_ORDER = jsPsych.randomization.shuffle(
+            Array.from({ length: N_BLOCKS }, (_, i) => i)
+        );
+
+        // blocks (order randomized by BLOCK_ORDER; param sets stay bundled)
+        for (let bIdx = 0; bIdx < N_BLOCKS; bIdx++) {
+            const realBlockId = BLOCK_ORDER[bIdx];   // which row of BLOCK_PARAMS to use this block
+            const displayBlockNum = bIdx + 1;        // 1-based
+            const blocksLeft = N_BLOCKS - displayBlockNum;
+
+            // Apply the params for THIS randomized block (changes once per block)
+            timeline.push({
+                type: 'call-function',
+                func: () => {
+                    globalBlockIndex = bIdx;                // Counter (randomized position)
+                    ACTIVE_BLOCK_DISPLAY_INDEX = bIdx;      // for logging
+                    ACTIVE_BLOCK_REAL_ID = realBlockId;     // for logging
+                    applyBlockParams(realBlockId);          // set pNoise/pScanCost/pReward/pPenalty
+                }
+            });
+
+            // Block reminder / parameter card (HUD-styled)
+            timeline.push({
+                type: 'html-button-response',
+                stimulus: function () {
+                    return `
+        <div class="hud">
+          <div class="hud-header">
+            <div class="hud-balance" id="balance">Gold: <strong>${currentMoney}</strong></div>
+            <div class="hud-meta">
+              <div>Asteroid Field ${displayBlockNum} of ${N_BLOCKS}</div>
+              <div>Asteroid Fields left: ${blocksLeft}</div>
+            </div>
+          </div>
+          <div class="hud-grid hud-stack">
+            <div class="hud-card">
+              <h3>Asteroid Field ${displayBlockNum} of ${N_BLOCKS}</h3>
+              <p>You have now travelled to a new asteroid field.</p>
+              <div class="hud-divider"></div>
+              <p>The company has determined new values for scanner reliability, cost, reward and penalty for this asteroid field:</p>
+              <div class="hud-divider"></div>
+              <p>Scanner accuracy: <strong>${Math.round(pNoise * 100)}%</strong></p>
+              <p>Scan cost: <strong>${pScanCost}</strong> gold</p>
+              <p>Reward: <strong>+${pReward}</strong> gold</p>
+              <p>Penalty: <strong>−${pPenalty}</strong> gold</p>
+              <div class="hud-divider"></div>
+              <p>Press <strong>Continue</strong> when ready.</p>
+            </div>
+          </div>
+        </div>`;
+                },
+                choices: ['Continue'],
+                button_html: '<button class="jspsych-btn hud-btn">%choice%</button>',
+                on_load: function () {
+                    const g = document.getElementById('jspsych-html-button-response-btngroup');
+                    if (g) g.classList.add('hud-actions');
+                }
+            });
+
+            // === Insert the ops-check ONCE per block ===
+            // Uses the pre-sampled item for this block: OPS_CHECKS_FOR_BLOCKS[bIdx]
+            timeline.push(makeOpsCheckTrial(OPS_CHECKS_FOR_BLOCKS[bIdx], bIdx));
+
+            // trials within this block (params remain constant during these trials)
+            for (let t = 0; t < TRIALS_PER_BLOCK; t++) {
+                // Track trial index
+                timeline.push({
+                    type: 'call-function',
+                    func: () => { globalTrialIndex = t; }
+                });
+
+                // One asteroid interaction (can scan repeatedly, then dig)
+                timeline.push(scanOrDigLoop);
+                timeline.push(confidenceTrial);
+                timeline.push(digFeedback);
+
+                // Prepare next asteroid
+                timeline.push({ type: 'call-function', func: resetAsteroid });
+            }
+        }
+
+        // Open-ended strategy question after task, before questionnaires
+            timeline.push({
+                type: 'survey-text',
+                preamble: `
+      <h3>Task Strategy</h3>
+      <p>Before moving on, please briefly describe any strategy you used during the asteroid mining task.</p>
+    `,
+                questions: [
+                    {
+                        prompt: 'What strategy or strategies did you use during the mining task?',
+                        rows: 8,
+                        columns: 80,
+                        name: 'strategy_report'
+                    }
+                ],
+                button_label: 'Continue',
+                data: {
+                    trial_part: 'strategy_report',
+                    block_index: function () { return globalBlockIndex; },
+                    trial_index: function () { return globalTrialIndex; }
+                },
+                on_finish: function (data) {
+                    data.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
+                    data.block_real_id = ACTIVE_BLOCK_REAL_ID;
+                    data.param_noise = pNoise;
+                    data.param_scan_cost = pScanCost;
+                    data.param_reward = pReward;
+                    data.param_penalty = pPenalty;
+                }
+            });
+
+
+
+        // Transition page before questionnaires
+        timeline.push({
+            type: 'html-button-response',
+            stimulus: `
+                <h3>Questionnaires</h3>
+                <p>The mining trials are complete. The next section asks about your usual thoughts, feelings, and habits in everyday life.</p>
+                <p>Please answer honestly based on your typical experience. <strong>Please read each question carefully.</strong> There are no right or wrong answers. Each questionnaire will include its own instructions. Follow those as written.</p>
+                <p>Some items refer to topics such as low mood, worry, or sleep.  If you prefer not to answer an item, you may leave it blank. If you try to continue with blanks, we’ll gently remind you and highlight them; you can still press <em>Next</em> again to continue.</p>
+                <p>When you are ready, select Begin Questionnaires.</p>
+  `,
+            choices: ['Begin Questionnaires']
+        });
+
+
+        // Questionnaires Section
+
+        // Reusable scales to help with randomization
+        const Q_SCALES = {
+            often4: ['Never', 'Rarely', 'Sometimes', 'Often'],
+            agree5: ['Strongly disagree', 'Disagree', 'Neither agree nor disagree', 'Agree', 'Strongly agree'],
+            agree4: ['Do not agree', 'Agree slightly', 'Agree moderately', 'Agree very much'],
+            often5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Almost always'],
+            typical5: ['Not at all typical of me', 'Not very typical of me', 'Somewhat typical of me', 'Fairly typical of me', 'Very typical of me'],
+            freq5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'],
+            days4: ['Not at all', 'Several days', 'More than half the days', 'Nearly every day']
+        };
+
+        const DEFAULT_SCALE = Q_SCALES.agree5;  // defualt scale set as agree5 
+
+
+        // Question sets 
+        const Q_SETS = [
+            {
+                key: 'rrs',
+                title: '',
+                preamble: 'Look at the scale below and please tell us if you never, sometimes, often, or always think or do each one when you feel down, sad, or depressed. Please indicate what you generally do, not what you think you should do.',
+                optionsKey: 'often4',
+                items: [
+                    `Think about how alone you feel.`,
+                    `Think "I won't be able to do my job if I don't snap out of this."`,
+                    `Think about your feelings of fatigue and achiness.`,
+                    `Think about how hard it is to concentrate.`,
+                    `Think "What am I doing to deserve this?"`,
+                    `Think about how passive and unmotivated you feel.`,
+                    `Analyze recent events to try to understand why you are depressed.`,
+                    `Think about how you don't seem to feel anything anymore.`,
+                    `Think "Why can't I get going?"`,
+                    `Think "Why do I always react this way?"`,
+                    `Go away by yourself and think about why you feel this way.`,
+                    `Write down what you are thinking and analyze it.`,
+                    `Think about a recent situation, wishing it had gone better.`,
+                    `Think "I won't be able to concentrate if I keep feeling this way."`,
+                    `Think "Why do I have problems other people don't have?"`,
+                    `Think "Why can't I handle things better?"`,
+                    `Think about how sad you feel.`,
+                    `Think about all your shortcomings, failings, faults, mistakes.`,
+                    `Think about how you don't feel up to doing anything.`,
+                    `Analyze your personality to try to understand why you are depressed.`,
+                    `Go someplace alone to think about your feeling.`,
+                    'Think about how angry you are with yourself.'
+                ],
+                horizontal: false
+            },
+            {
+                key: 'pswq',
+                title: '',
+                preamble: 'Think about how typical each statement is for you.',
+                optionsKey: 'typical5',
+                items: [
+                    "If I do not have enough time to do everything, I do not worry about it.",
+                    "My worries overwhelm me.",
+                    "I do not tend to worry about things.",
+                    "Many situations make me worry.",
+                    "I know I should not worry about things, but I just cannot help it.",
+                    "When I am under pressure I worry a lot.",
+                    "I am always worrying about something.",
+                    "I find it easy to dismiss worrisome thoughts.",
+                    "As soon as I finish one task, I start to worry about everything else I have to do.",
+                    "I never worry about anything.",
+                    "When there is nothing more I can do about a concern, I do not worry about it any more.",
+                    "I have been a worrier all my life.",
+                    "I notice that I have been worrying about things.",
+                    "Once I start worrying, I cannot stop.",
+                    "I worry all the time.",
+                    "I worry about projects until they are all done."
+                ],
+                horizontal: false
+            },
+            {
+                key: 'ptq',
+                title: '',
+                preamble: 'In this questionnaire, you will be asked to describe how you typically think about negative experiences or problems. Please read the following statements and rate the extent to which they apply to you when you think about negative experiences or problems.',
+                optionsKey: 'often5',
+                items: [
+                    'The same thoughts keep going through my mind',
+                    'Thoughts intrude into my mind.',
+                    'I cannot stop dwelling on my thoughts.',
+                    'I think about many problems without solving any of them.',
+                    'I cannot do anything else while thinking about my problems',
+                    'My thoughts repeat themselves.',
+                    'Thoughts come to my mind without me wanting them to.',
+                    'I get stuck on certain issues and cannot move on',
+                    'I keep asking myself questions without finding an answer.',
+                    'My thoughts prevent me from focusing on other things.',
+                    'I keep thinking about the same issue all the time.',
+                    'Thoughts just pop into my mind.',
+                    'I feel driven to continue dwelling on the same issue.',
+                    'My thoughts are not much help to me',
+                    'My thoughts take up all my attention.'
+                ],
+                horizontal: false
+            },
+
+            {
+                key: 'MCQ30-F1',
+                title: '',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "I do not trust my memory.",
+                    "I have a poor memory.",
+                    "I have little confidence in my memory for actions.",
+                    "I have little confidence in my memory for places.",
+                    "I have little confidence in my memory for words and names.",
+                    "My memory can mislead me at times."
+                ],
+                horizontal: false
+            },
+
+            {
+                key: 'MCQ30-F2',
+                title: '',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "Worrying helps me to get things sorted out in my mind.",
+                    "Worrying helps me cope.",
+                    "I need to worry in order to work well.",
+                    "Worrying helps me to solve problems.",
+                    "I need to worry in order to remain organised.",
+                    "Worrying helps me to avoid problems in the future."
+                ],
+                horizontal: false
+            },
+
+            {
+                key: 'MCQ30-F3',
+                title: '',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "I am constantly aware of my thinking.",
+                    "I pay close attention to the way my mind works.",
+                    "I think a lot about my thoughts.",
+                    "I constantly examine my thoughts.",
+                    "I monitor my thoughts.",
+                    "I am aware of the way my mind works when I am thinking through a problem."
+                ],
+                horizontal: false
+            },
+
+            {
+                key: 'MCQ30-F4',
+                title: '',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "My worrying thoughts persist, no matter how I try to stop them.",
+                    "When I start worrying I cannot stop.",
+                    "I could make myself sick with worrying.",
+                    "I cannot ignore my worrying thoughts.",
+                    "My worrying could make me go mad.",
+                    "My worrying is dangerous for me."
+                ],
+                horizontal: false
+            },
+
+            {
+                key: 'MCQ30-F5',
+                title: '',
+                preamble: ' Please read each belief carefully and indicate how much you generally agree with each one.',
+                optionsKey: 'agree4',
+                items: [
+                    "If I could not control my thoughts, I would not be able to function.",
+                    "Not being able to control my thoughts is a sign of weakness.",
+                    "I should be in control of my thoughts all of the time.",
+                    "It is bad to think certain thoughts.",
+                    "If I did not control a worrying thought and then it happened, it would be my fault.",
+                    "I will be punished for not controlling certain thoughts."
+
+                ],
+                horizontal: false
+            },
+        ];
+
+        // ---- PHQ-8 always-last questionnaire (not randomized) ----
+        const ALWAYS_LAST = {
+            key: 'PHQ-8',
+            title: '',
+            preamble: 'Over the last 2 weeks, how often have  you been bothered by any of the following problems?:',
+            optionsKey: 'days4',
+            items: [
+                "Little interest or pleasure in doing things.",
+                "Feeling down, depressed, irritable, or hopeless.",
+                "Trouble falling or staying asleep, or sleeping too much.",
+                "Feeling tired or having little energy.",
+                "Poor appetite or overeating.",
+                "Feeling bad about yourself — or that you are a failure or have let yourself or your family down.",
+                "Trouble concentrating on things, such as school work, reading, or watching television.",
+                "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual."
+            ],
+            horizontal: false
+        };
+
+        // ===== SOFT-required Questionnaire Responses =====
+        // first press warns and highlights blanks; second press submits as-is. To disable for a specific questionnaire, set `soft_required: false` on that set.
+        function makeSurveyBlock(set) {
+            const setOptions =
+                set.options ||
+                (set.optionsKey ? Q_SCALES[set.optionsKey] : null) ||
+                DEFAULT_SCALE;
+
+            // Normalize items 
+            const items = set.items.map(it => (typeof it === 'string') ? { prompt: it } : it);
+            const names = items.map((it, i) => (it && it.name) ? it.name : `${set.key}_${i + 1}`);
+
+            // Randomize once per questionnaire and keep that order for this block even on repeat
+            const order = jsPsych.randomization.shuffle([...Array(items.length).keys()]);
+
+            // Map original index 
+            const displayIndexByOrig = {};
+            order.forEach((origIdx, displayIdx) => displayIndexByOrig[origIdx] = displayIdx);
+
+            // Soft-required state
+            let warnedOnce = false;        // false until we block first submit with blanks
+            let lastResponses = {};        // { name: chosenOptionText }
+            let lastMissingNames = [];     // item names that were blank on last attempt
+
+            function buildQuestions() {
+                return order.map(origIdx => {
+                    const item = items[origIdx];
+                    const name = names[origIdx];
+
+                    const itemOptions =
+                        item.options ||
+                        (item.optionsKey ? Q_SCALES[item.optionsKey] : null) ||
+                        setOptions ||
+                        DEFAULT_SCALE;
+
+                    const horizontal =
+                        (typeof item.horizontal === 'boolean') ? item.horizontal :
+                            (typeof set.horizontal === 'boolean') ? set.horizontal : false;
+
+                    return {
+                        prompt: item.prompt,
+                        name: name,
+                        options: itemOptions,
+                        required: false,      // we manage soft-required ourselves
+                        horizontal: horizontal
+                    };
+                });
+            }
+
+            function esc(v) { return String(v).replace(/(["\\])/g, '\\$1'); }
+
+            // Robust CSS escape in case of issues
+            function cssEsc(s) {
+                return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/(["\\])/g, '\\$1');
+            }
+
+            // Build a robust mapping from our logical names -> DOM question element + DOM radio group name
+            let dom = {
+                elByName: {},        // { ourName: HTMLElement }
+                groupByName: {},     // { ourName: "Q0" or "demo_age" or whatever the plugin used }
+            };
+
+            function buildDomMap() {
+                dom.elByName = {};
+                dom.groupByName = {};
+
+                const qEls = Array.from(document.querySelectorAll('.jspsych-survey-multi-choice-question'));
+
+                // Questions are rendered in the same order as buildQuestions(): which is `order.map(...)`
+                // So displayIdx corresponds to qEls[displayIdx]
+                qEls.forEach((qEl, displayIdx) => {
+                    const origIdx = order[displayIdx];
+                    const ourName = names[origIdx];
+
+                    dom.elByName[ourName] = qEl;
+
+                    const firstRadio = qEl.querySelector('input[type="radio"]');
+                    if (firstRadio && firstRadio.name) {
+                        dom.groupByName[ourName] = firstRadio.name;
+                    }
+                });
+            }
+
+            function getQuestionElByName(name) {
+                return dom.elByName[name] || null;
+            }
+
+            function getCheckedValueByName(name) {
+                const group = dom.groupByName[name];
+                if (!group) return null;
+                const checked = document.querySelector(`input[name="${cssEsc(group)}"]:checked`);
+                return checked ? checked.value : null;
+            }
+
+
+
+            // Remove the soft-missing style if participant makes a selection
+            function installSoftMissingClears() {
+                document
+                    .querySelectorAll('.jspsych-survey-multi-choice-question.soft-missing input[type="radio"]')
+                    .forEach(inp => {
+                        inp.addEventListener('change', () => {
+                            const q = inp.closest('.jspsych-survey-multi-choice-question');
+                            if (!q) return;
+                            q.classList.remove('soft-missing');
+                            const hint = q.querySelector('.jspsych-soft-miss-hint');
+                            if (hint) hint.remove();
+                        }, { once: true });
+                    });
+            }
+
+            const surveyTrial = {
+                type: 'survey-multi-choice',
+                preamble: `<h3>${set.title || ''}</h3>${set.preamble ? `<p>${set.preamble}</p>` : ''}`,
+                questions: buildQuestions(),
+                randomize_question_order: false,
+                button_label: 'Next',
+                data: { questionnaire: set.key },
+
+                on_load: function () {
+                    const host = document.getElementById('jspsych-content');
+                    buildDomMap();
+
+                    // ---- Conditional "Other" text field support ----
+                    items.forEach((item, i) => {
+                        if (!item.allow_other_text) return;
+
+                        const name = names[i];
+                        const qEl = getQuestionElByName(name);
+                        if (!qEl) return;
+
+                        const group = dom.groupByName[name];
+                        if (!group) return;
+
+                        const radios = qEl.querySelectorAll(`input[name="${cssEsc(group)}"]`);
+
+                        // Create hidden text box
+                        const textInput = document.createElement('input');
+                        textInput.type = 'text';
+                        textInput.placeholder = 'Please specify...';
+                        textInput.style.display = 'none';
+                        textInput.style.marginTop = '6px';
+                        textInput.className = 'jspsych-other-text';
+                        qEl.appendChild(textInput);
+
+                        radios.forEach(r => {
+                            r.addEventListener('change', () => {
+                                if (r.value.includes('Other')) {
+                                    textInput.style.display = 'block';
+                                    textInput.focus();
+                                } else {
+                                    textInput.style.display = 'none';
+                                    textInput.value = '';
+                                }
+                            });
+                        });
+                    });
+
+
+                    // Prefill prior selections (use the DOM group name that jsPsych actually rendered)
+                    Object.keys(lastResponses).forEach(name => {
+                        const value = lastResponses[name];
+                        if (value == null || value === '') return;
+
+                        const group = dom.groupByName[name];
+                        if (!group) return;
+
+                        const radio = document.querySelector(
+                            `input[name="${cssEsc(group)}"][value="${esc(value)}"]`
+                        );
+                        if (radio) radio.checked = true;
+                    });
+
+
+
+                    // If we previously warned, show banner and highlight the missing questions
+                    if (warnedOnce && lastMissingNames.length && host && !document.getElementById('softwarn-banner')) {
+                        const banner = document.createElement('div');
+                        banner.id = 'softwarn-banner';
+                        banner.className = 'softwarn-banner';
+                        banner.innerHTML = `
+          Some items were left unanswered. If you missed one by mistake you have a chance to re-enter your response.
+          You may answer them now, or press <strong>Next</strong> again to continue without answering.`;
+                        host.insertBefore(banner, host.firstChild);
+                    }
+
+                    // Highlight any missing items from last run-through
+                    if (warnedOnce && lastMissingNames.length) {
+                        let firstMissingEl = null;
+
+                        lastMissingNames.forEach(name => {
+                            const q = getQuestionElByName(name);
+                            if (!q) return;
+
+                            // If it is now answered, don't mark it missing
+                            const v = getCheckedValueByName(name);
+                            if (v != null && v !== '') return;
+
+                            q.classList.add('soft-missing');
+
+                            if (!q.querySelector('.jspsych-soft-miss-hint')) {
+                                const hint = document.createElement('div');
+                                hint.className = 'jspsych-soft-miss-hint';
+                                hint.textContent = 'Please select an option, or press Next again to skip.';
+                                q.appendChild(hint);
+                            }
+
+                            if (!firstMissingEl) firstMissingEl = q;
+                        });
+
+                        if (firstMissingEl) {
+                            firstMissingEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+
+                    installSoftMissingClears();
+
+                    // Intercept submit for soft-required behavior
+                    const btn = document.getElementById('jspsych-survey-multi-choice-next');
+                    if (!btn) return;
+
+                    btn.addEventListener('click', function intercept(ev) {
+                        // Parse current selections from DOM by question name
+                        const current = {};
+                        names.forEach(n => {
+                            const v = getCheckedValueByName(n);
+                            if (v != null && v !== '') current[n] = v;
+                        });
+
+                        const missing = names.filter(n => !(n in current));
+
+                        /// First time with blanks: block advance, store state, paint warnings, and keep answers
+                        if (missing.length > 0 && !warnedOnce) {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+
+                            warnedOnce = true;
+                            lastResponses = current;
+                            lastMissingNames = missing;
+
+                            // Show banner (once)
+                            const host = document.getElementById('jspsych-content');
+                            if (host && !document.getElementById('softwarn-banner')) {
+                                const banner = document.createElement('div');
+                                banner.id = 'softwarn-banner';
+                                banner.className = 'softwarn-banner';
+                                banner.innerHTML = `Some items were left unanswered. They’re highlighted below.
+        You may answer them now, or press <strong>Next</strong> again to continue without answering.`;
+                                host.insertBefore(banner, host.firstChild);
+                            }
+
+                            // Paint missing highlights
+                            let firstMissingEl = null;
+                            lastMissingNames.forEach(name => {
+                                const q = getQuestionElByName(name);
+                                if (!q) return;
+
+                                const v = getCheckedValueByName(name);
+                                if (v != null && v !== '') return;
+
+                                q.classList.add('soft-missing');
+                                if (!q.querySelector('.jspsych-soft-miss-hint')) {
+                                    const hint = document.createElement('div');
+                                    hint.className = 'jspsych-soft-miss-hint';
+                                    hint.textContent = 'Please select an option, or press Next again to skip.';
+                                    q.appendChild(hint);
+                                }
+                                if (!firstMissingEl) firstMissingEl = q;
+                            });
+
+                            installSoftMissingClears();
+
+                            if (firstMissingEl) {
+                                firstMissingEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+
+                            return; // stay on the page
+                        }
+
+
+
+                        // Either no blanks, or second click allowed
+                        // Close and add responses in the record
+                        lastResponses = current;
+                        lastMissingNames = missing;
+                    }, { capture: true });
+                },
+
+                on_finish: function (data) {
+
+                    // Capture any "Other" text fields from language question
+                    Object.keys(dom.groupByName).forEach(name => {
+                        const qEl = getQuestionElByName(name);
+                        if (!qEl) return;
+
+                        const textInput = qEl.querySelector('.jspsych-other-text');
+                        if (!textInput) return;
+
+                        const selected = getCheckedValueByName(name);
+                        if (selected && selected.includes('Other') && textInput.value.trim() !== '') {
+                            data[`${name}_other_text`] = textInput.value.trim();
+                        }
+                    });
+
+                    const resp = JSON.parse(data.responses || '{}');
+                    data.soft_missing_count = Object.keys(resp).length ? (names.length - Object.keys(resp).length) : names.length;
+                    data.soft_warned_once = warnedOnce ? 1 : 0;
+                }
+            };
+
+
+            // Return single trial. 
+            return surveyTrial;
+        }
+
+
+        // ---- Add questionnaires to the timeline ----
+        const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
+        randomizedSets.forEach(set => timeline.push(makeSurveyBlock(set)));
+        timeline.push(makeSurveyBlock(ALWAYS_LAST)); // fixed last
+
+        // ---- Demographics ----
+        const DEMOGRAPHICS_SET = {
+            key: 'demographics',
+            title: 'Demographics',
+            preamble: 'The following questions are optional. You may skip any question by choosing Prefer not to say.',
+            required: false,            // make every item optional
+            horizontal: false,          // vertical layout for clarity
+            items: [
+                {
+                    prompt: 'Age', name: 'demo_age', optionsKey: null, options: [
+                        '18–24', '25–34', '35–44', '45–54', '55–64', '65+', 'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Gender identity', name: 'demo_gender', optionsKey: null, options: [
+                        'Woman', 'Man', 'Nonbinary', 'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Hispanic or Latino/a/x origin', name: 'demo_ethnicity', optionsKey: null, options: [
+                        'Yes', 'No', 'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Race', name: 'demo_race', optionsKey: null, options: [
+                        'American Indian or Alaska Native',
+                        'Asian',
+                        'Black or African American',
+                        'Native Hawaiian or Other Pacific Islander',
+                        'White',
+                        'Another race',
+                        'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Highest level of education completed', name: 'demo_education', optionsKey: null, options: [
+                        'Some high school',
+                        'High school diploma or GED',
+                        'Some college',
+                        "Bachelor's degree",
+                        'Some graduate school',
+                        'Graduate or professional degree',
+                        'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Native language',
+                    name: 'demo_language',
+                    optionsKey: null,
+                    options: [
+                        'English',
+                        'Spanish',
+                        'Chinese',
+                        'French',
+                        'Other (please specify)',
+                        'Prefer not to say'
+                    ],
+                    allow_other_text: true
+                }
+,
+                {
+                    prompt: 'English proficiency', name: 'demo_english', optionsKey: null, options: [
+                        'Native', 'Fluent', 'Conversational', 'Basic', 'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Current residence', name: 'demo_residence', optionsKey: null, options: [
+                        'United States', 'Outside the United States', 'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Handedness', name: 'demo_handedness', optionsKey: null, options: [
+                        'Right', 'Left', 'Ambidextrous', 'Prefer not to say'
+                    ]
+                },
+                {
+                    prompt: 'Device used for this study', name: 'demo_device', optionsKey: null, options: [
+                        'Desktop or laptop', 'Tablet', 'Mobile phone', 'Prefer not to say'
+                    ]
+                }
+            ]
+        };
+
+        // Add Demographics page to experiment
+        timeline.push(makeSurveyBlock(DEMOGRAPHICS_SET));
+
+
+
+        // final screen with crisis resources for participants (This was in the IRB)
+        timeline.push({
+            type: 'html-button-response',
+            stimulus: function () {
+                return `
+      <h2>Congratulations on a successful space mining adventure!</h2>
+      <p>Your final balance: <strong>${currentMoney}</strong> gold.</p>
+      <p>Thank you for participating in our experiments.</p>
+
+      <hr style="margin:18px 0; opacity:.4">
+
+      <h3 style="margin-top:0"><strong>If you are suicidal or in emotional distress</strong></h3>
+      <p>
+        Please consider using the <strong>988 Suicide &amp; Crisis Lifeline</strong>.
+        Call or text <strong>988</strong> or go to
+        <a href="https://988lifeline.org/chat/" target="_blank" rel="noopener noreferrer">https://988lifeline.org/chat/</a>
+        to connect with a trained crisis counselor. The Lifeline provides 24-hour, confidential support to anyone in suicidal crisis or emotional distress.
+        You can reach a specialized LGBTQI+ affirming counselor by texting “Q” to <strong>988</strong> or by calling <strong>988</strong> and pressing “3”.
+      </p>
+    `;
+            },
+            choices: ['Finish']
+        });
+
+        // launch the full experiment
+        jsPsych.init({
+            timeline: timeline,
+            display_element: document.getElementById('jspsych-target'),
+            on_finish: function () {
+
+                // Show a "saving" screen immediately
+                showEndScreen(`
+    <div class="hud" style="max-width:800px;margin:40px auto;">
+      <div class="hud-card">
+        <h2 style="margin-top:0;">Saving your data…</h2>
+        <p>Please do not close this tab.</p>
+        <p style="opacity:.85;">You will be redirected back to Prolific automatically.</p>
+      </div>
+    </div>
+  `);
+
+                // Build filename
+                const pidForFile = (PROLIFIC_PID || PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
+                const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
+                const fname = `mining_task_${pidForFile}_${tsSafe}.csv`;
+
+                // Build payload
+                let rows = JSON.parse(jsPsych.data.get().json());
+
+                // Push final score to make life easy later. 
+                rows.push({
+                    trial_part: 'final_summary',
+                    final_gold: currentMoney
+                });
+
+                // Optional but recommended: strip huge fields that can bloat payloads
+                rows = rows.map(r => {
+                    const rr = { ...r };
+                    delete rr.stimulus;
+                    delete rr.button_html;
+                    delete rr.preamble;
+                    delete rr.pages;
+                    return rr;
+                });
+
+                console.log('[Drive save] jsPsych row count:', jsPsych.data.get().count());
+                console.log('[Drive save] rows length:', rows.length);
+
+                const payload = {
+                    file_name: fname,
+                    prolific_pid: PROLIFIC_PID || '',
+                    task_version: (typeof TASK_VERSION !== 'undefined') ? TASK_VERSION : '',
+                    start_timestamp: START_TIMESTAMP || '',
+                    session_id: PROLIFIC_SESS || SESSION_ID || '',
+                    rows: rows
+                };
+
+                // Send save request, then redirect no matter what
+                fetch(SAVE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                })
+                    .then(async (r) => {
+                        const text = await r.text();
+                        console.log('[Drive save] HTTP status:', r.status, r.statusText);
+                        console.log('[Drive save] raw response (first 500 chars):', text.slice(0, 500));
+
+                        // Parse JSON if possible, but don't crash if not
+                        try {
+                            const json = JSON.parse(text);
+                            console.log('[Drive save] response JSON:', json);
+                        } catch (e) {
+                            console.warn('[Drive save] non-JSON response');
+                        }
+                    })
+                    .catch((err) => {
+                        console.error('[Drive save] failed:', err);
+                    })
+                    .finally(() => {
+                        if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
+                            window.location.href = PROLIFIC_COMPLETION_URL;
+                        } else {
+                            showEndScreen(`
+          <div class="hud" style="max-width:800px;margin:40px auto;">
+            <div class="hud-card">
+              <h2 style="margin-top:0;">Finished</h2>
+              <p>If you are not redirected automatically, please copy this completion code into Prolific:</p>
+              <p style="font-size:1.4rem;"><strong>C1415QQK</strong></p>
+            </div>
+          </div>
+        `);
+                        }
+                     });
+            } // end on_finish
+        }); // end jsPsych.init
+                    </script>
+    </body>
+    
+    </html>
