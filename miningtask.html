@@ -10,7 +10,7 @@ P      A   A    Y      TT    OOOO   N   N
 Author: Michael Payton
 Project: Rumination
 
-Edit Notes (2026-03-23):
+Edit Notes (2026-03-24):
 - Implemented Versioning constant and per-row logging.
 - Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
 - Implemented File naming to include participant ID and ISO timestamp.
@@ -25,6 +25,7 @@ Edit Notes (2026-03-23):
 - Questionnaire items are now optional with alert for incomplete items.
 - Saving triple tested on browswers
 - Added strategy question at the end of the experiment
+- Saving in blocks
 -->
 
 <head>
@@ -462,10 +463,95 @@ Edit Notes (2026-03-23):
                 }).finally(() => clearTimeout(t));
             }
 
+            // ======== Chunked saving helpers ========
+
+                // Tracks how many jsPsych rows have already been saved
+                let lastSavedRowIndex = 0;
+
+                // Visible debug log
+                function logChunkSave(label, rows) {
+                    console.log(`[Chunk save] ${label} | new rows:`, rows.length);
+                }
+
+                // Keep the same row data shape, remove bulky presentation-only fields
+                function sanitizeRowsForSave(rows) {
+                    return rows.map(r => {
+                        const rr = { ...r };
+                        delete rr.stimulus;
+                        delete rr.button_html;
+                        delete rr.preamble;
+                        delete rr.pages;
+                        return rr;
+                    });
+                }
+
+                // Build a safe file name for each chunk
+                function buildChunkFileName(chunkLabel) {
+                    const pidForFile = (PROLIFIC_PID || PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
+                    const safeChunk = String(chunkLabel).replace(/[^a-zA-Z0-9_-]/g, '_');
+                    return `mining_task_${pidForFile}_${tsSafe}_${safeChunk}.json`;
+                }
+
+                // Save only rows that have not yet been saved
+                function saveUnsavedRowsChunk(chunkType, chunkLabel, timeoutMs = 12000) {
+                    const allRows = jsPsych.data.get().values();
+                    const newRowsRaw = allRows.slice(lastSavedRowIndex);
+
+                    if (!newRowsRaw.length) {
+                        console.log(`[Chunk save] ${chunkLabel}: no new rows to save`);
+                        return Promise.resolve({ skipped: true, reason: 'no_new_rows' });
+                    }
+
+                    const newRows = sanitizeRowsForSave(newRowsRaw);
+                    logChunkSave(chunkLabel, newRows);
+
+                    const payload = {
+                        file_name: buildChunkFileName(chunkLabel),
+                        chunk_type: chunkType,
+                        chunk_label: chunkLabel,
+                        prolific_pid: PROLIFIC_PID || '',
+                        prolific_study_id: PROLIFIC_STUDY || '',
+                        task_version: (typeof TASK_VERSION !== 'undefined') ? TASK_VERSION : '',
+                        start_timestamp: START_TIMESTAMP || '',
+                        session_id: PROLIFIC_SESS || SESSION_ID || '',
+                        row_start_index: lastSavedRowIndex,
+                        row_end_index: allRows.length - 1,
+                        row_count: newRows.length,
+                        rows: newRows
+                    };
+
+                    const payloadString = JSON.stringify(payload);
+                    console.log(`[Chunk save] ${chunkLabel} payload bytes:`, payloadString.length);
+
+                    return postJsonTextPlainWithTimeout(SAVE_URL, payload, timeoutMs)
+                        .then(async (r) => {
+                            const text = await r.text();
+                            console.log(`[Chunk save] ${chunkLabel} HTTP status:`, r.status, r.statusText);
+                            console.log(`[Chunk save] ${chunkLabel} raw response:`, text.slice(0, 500));
+
+                            // Only advance the cursor if the request actually returned
+                            lastSavedRowIndex = allRows.length;
+
+                            try {
+                                const json = JSON.parse(text);
+                                console.log(`[Chunk save] ${chunkLabel} response JSON:`, json);
+                                return json;
+                            } catch (e) {
+                                console.warn(`[Chunk save] ${chunkLabel} non-JSON response`);
+                                return { ok: true, raw_text: text };
+                            }
+                        })
+                        .catch((err) => {
+                            console.error(`[Chunk save] ${chunkLabel} failed:`, err);
+                            throw err;
+                        });
+                }
+
 
             // Starting Parameters
         const N_BLOCKS = 5; // must match number of blocks in per-block overrides
-        const TRIALS_PER_BLOCK = 1;
+        const TRIALS_PER_BLOCK = 3;
         const STARTING_MONEY = 1000;
         const NOISE = 0.65;   // scanner accuracy, probability of a correct scan
         const SCAN_COST = 1;
@@ -950,26 +1036,49 @@ Edit Notes (2026-03-23):
 
         // Feedback after each dig action
         const digFeedback = {
-            type: 'html-button-response',
-            choices: [],    // no buttons
-            stimulus: function () {
-                // Grab all data, reverse it, and find the first trial where we actually dug
-                const allData = jsPsych.data.get().values();
-                const digData = allData
-                    .slice()                      // copy
-                    .reverse()                    // last trial first
-                    .find(trial => trial.dug);    // only dig trials have `dug` defined
+                type: 'html-button-response',
+                choices: [],    // no buttons
+                stimulus: function () {
+                    // Grab all data, reverse it, and find the first trial where we actually dug
+                    const allData = jsPsych.data.get().values();
+                    const digData = allData
+                        .slice()                      // copy
+                        .reverse()                    // last trial first
+                        .find(trial => trial.dug);    // only dig trials have `dug` defined
 
-                return `
-      <div id="balance">Gold: <strong>${currentMoney}</strong></div>
-      ${digData.correct
-                        ? `<p>You struck gold! (+${pReward})</p>`
-                        : `<p>Better luck next time! (−${pPenalty})</p>`
+                    return `
+<div id="balance">Gold: <strong>${currentMoney}</strong></div>
+${digData.correct
+                            ? `<p>You struck gold! (+${pReward})</p>`
+                            : `<p>Better luck next time! (−${pPenalty})</p>`
+                        }
+`;
+                },
+                trial_duration: 1500,
+                on_finish: function (data) {
+                    // stamp the same block/trial metadata pattern here too
+                    data.block_index = globalBlockIndex;
+                    data.trial_index = globalTrialIndex;
+                    data.block_display_index = ACTIVE_BLOCK_DISPLAY_INDEX;
+                    data.block_real_id = ACTIVE_BLOCK_REAL_ID;
+                    data.param_noise = pNoise;
+                    data.param_scan_cost = pScanCost;
+                    data.param_reward = pReward;
+                    data.param_penalty = pPenalty;
+
+                    // Save once at the end of each block using the GLOBAL trial index,
+                    // which is available here.
+                    if (globalTrialIndex === TRIALS_PER_BLOCK - 1) {
+                        saveUnsavedRowsChunk('task_block', `block_${globalBlockIndex + 1}`)
+                            .then(() => {
+                                console.log(`[Chunk save] block_${globalBlockIndex + 1} saved`);
+                            })
+                            .catch((err) => {
+                                console.error(`[Chunk save] block_${globalBlockIndex + 1} failed:`, err);
+                            });
                     }
-    `;
-            },
-            trial_duration: 1500
-        };
+                }
+            };
 
         // Confidence slider after each dig action
         const confidenceTrial = {
@@ -1139,7 +1248,7 @@ Edit Notes (2026-03-23):
         const quizQ4 = makeQuizQuestion({
                 qid: 'independence_base_rate',
                 promptHTML: `<p><strong>4.</strong> Suppose the last <strong>four</strong> asteroids in this asteroid field had gold in the core.
-                What is the chance that the <strong>next asteroid</strong> also has gold in the core?</p>`,
+        What is the chance that the <strong>next asteroid</strong> also has gold in the core?</p>`,
                 choices: [
                     'More than 50% because there has been a streak of core locations.',
                     'Less than 50% because streaks tend to reverse.',
@@ -1148,6 +1257,25 @@ Edit Notes (2026-03-23):
                 correctIndex: 2,
                 feedbackHTML: `<p>Incorrect. Each asteroid is independent and has a 50% chance of core and 50% chance of surface, regardless of previous outcomes. Streaks do not change the probability.</p>`
             });
+
+            // attach pretask save after the final comprehension item is fully completed
+            const oldQuizQ4Loop = quizQ4.loop_function;
+            quizQ4.loop_function = function (data) {
+                const shouldRepeat = oldQuizQ4Loop(data);
+
+                // only save once the participant has answered correctly and the loop is ending
+                if (!shouldRepeat) {
+                    saveUnsavedRowsChunk('pretask', 'pretask_comprehension')
+                        .then(() => {
+                            console.log('[Chunk save] pretask_comprehension saved');
+                        })
+                        .catch((err) => {
+                            console.error('[Chunk save] pretask_comprehension failed:', err);
+                        });
+                }
+
+                return shouldRepeat;
+            };
 
 
 
@@ -1220,12 +1348,13 @@ Edit Notes (2026-03-23):
 
 
         // comprehension check questions 
-        timeline.push(quizQ1, quizQ2, quizQ3, quizQ4);
+            timeline.push(quizQ1, quizQ2, quizQ3, quizQ4);
 
-        // Pick exactly one ops-check per block, without replacement
-        const OPS_CHECKS_FOR_BLOCKS = jsPsych.randomization.shuffle(OPS_CHECK_ITEMS).slice(0, N_BLOCKS);
 
-        // On new asteroid, reset observation and counters
+            // Pick exactly one ops-check per block, without replacement
+            const OPS_CHECKS_FOR_BLOCKS = jsPsych.randomization.shuffle(OPS_CHECK_ITEMS).slice(0, N_BLOCKS);
+
+            // On new asteroid, reset observation and counters
             function resetAsteroid() {
                 trueState = (Math.random() < 0.5) ? 'surface' : 'core';
                 scanMsg = null;
@@ -2003,97 +2132,42 @@ Edit Notes (2026-03-23):
 
         // launch the full experiment
         jsPsych.init({
-            timeline: timeline,
-            display_element: document.getElementById('jspsych-target'),
-            on_finish: function () {
+                timeline: timeline,
+                display_element: document.getElementById('jspsych-target'),
+                on_finish: function () {
 
-                // Show a "saving" screen immediately
-                showEndScreen(`
-    <div class="hud" style="max-width:800px;margin:40px auto;">
-      <div class="hud-card">
-        <h2 style="margin-top:0;">Saving your data…</h2>
-        <p>Please do not close this tab.</p>
-        <p style="opacity:.85;">You will be redirected back to Prolific automatically.</p>
-      </div>
-    </div>
-  `);
 
-                // Build filename
-                const pidForFile = (PROLIFIC_PID || PARTICIPANT_ID || 'NA').replace(/[^a-zA-Z0-9_-]/g, '_');
-                const tsSafe = (START_TIMESTAMP || new Date().toISOString()).replace(/[:]/g, '-');
-                const fname = `mining_task_${pidForFile}_${tsSafe}.csv`;
-
-                // Build payload
-                let rows = JSON.parse(jsPsych.data.get().json());
-
-                // Push final score to make life easy later. 
-                rows.push({
-                    trial_part: 'final_summary',
-                    final_gold: currentMoney
-                });
-
-                // Optional but recommended: strip huge fields that can bloat payloads
-                rows = rows.map(r => {
-                    const rr = { ...r };
-                    delete rr.stimulus;
-                    delete rr.button_html;
-                    delete rr.preamble;
-                    delete rr.pages;
-                    return rr;
-                });
-
-                console.log('[Drive save] jsPsych row count:', jsPsych.data.get().count());
-                console.log('[Drive save] rows length:', rows.length);
-
-                const payload = {
-                    file_name: fname,
-                    prolific_pid: PROLIFIC_PID || '',
-                    task_version: (typeof TASK_VERSION !== 'undefined') ? TASK_VERSION : '',
-                    start_timestamp: START_TIMESTAMP || '',
-                    session_id: PROLIFIC_SESS || SESSION_ID || '',
-                    rows: rows
-                };
-
-                // Send save request, then redirect no matter what
-                fetch(SAVE_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload),
-                    keepalive: true
-                })
-                    .then(async (r) => {
-                        const text = await r.text();
-                        console.log('[Drive save] HTTP status:', r.status, r.statusText);
-                        console.log('[Drive save] raw response (first 500 chars):', text.slice(0, 500));
-
-                        // Parse JSON if possible, but don't crash if not
-                        try {
-                            const json = JSON.parse(text);
-                            console.log('[Drive save] response JSON:', json);
-                        } catch (e) {
-                            console.warn('[Drive save] non-JSON response');
-                        }
-                    })
-                    .catch((err) => {
-                        console.error('[Drive save] failed:', err);
-                    })
-                    .finally(() => {
-                        if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
-                            window.location.href = PROLIFIC_COMPLETION_URL;
-                        } else {
-                            showEndScreen(`
-          <div class="hud" style="max-width:800px;margin:40px auto;">
-            <div class="hud-card">
-              <h2 style="margin-top:0;">Finished</h2>
-              <p>If you are not redirected automatically, please copy this completion code into Prolific:</p>
-              <p style="font-size:1.4rem;"><strong>C1415QQK</strong></p>
+                    showEndScreen(`
+            <div class="hud" style="max-width:800px;margin:40px auto;">
+              <div class="hud-card">
+                <h2 style="margin-top:0;">Saving questionnaires and final data…</h2>
+                <p>Please do not close this tab.</p>
+                <p style="opacity:.85;">You will be redirected back to Prolific automatically.</p>
+              </div>
             </div>
-          </div>
         `);
-                        }
-                     });
-            } // end on_finish
-        }); // end jsPsych.init
+
+                    saveUnsavedRowsChunk('questionnaires_final', 'questionnaires_and_demographics')
+                        .catch(() => null)
+                        .finally(() => {
+                            setTimeout(() => {
+                                if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
+                                    window.location.href = PROLIFIC_COMPLETION_URL;
+                                } else {
+                                    showEndScreen(`
+                            <div class="hud" style="max-width:800px;margin:40px auto;">
+                              <div class="hud-card">
+                                <h2 style="margin-top:0;">Finished</h2>
+                                <p>If you are not redirected automatically, please copy this completion code into Prolific:</p>
+                                <p style="font-size:1.4rem;"><strong>C1415QQK</strong></p>
+                              </div>
+                            </div>
+                        `);
+                                }
+                            }, 1500);
+                        });
+                } // end on_finish
+            }); // end jsPsych.init
                     </script>
     </body>
     
