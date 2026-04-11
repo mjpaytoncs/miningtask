@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Test Save</title>
+</head>
+
+<body>
+    <button id="send">Send Test Payload</button>
+    <pre id="output"></pre>
+
+    <script>
+        document.getElementById('send').addEventListener('click', async () => {
+            const payload = {
+                participant_id: "TESTPARTICIPANT",
+                study_id: "TESTSTUDY",
+                session_id: "TESTSESSION",
+                task_version: "mining_task_test_v1",
+                submitted_at_client: new Date().toISOString(),
+                data: [
+                    { trial: 1, choice: "scan", rt: 1200 },
+                    { trial: 2, choice: "dig_shallow", rt: 900 }
+                ]
+            };
+
+            try {
+                const response = await fetch('save_data.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const text = await response.text();
+                document.getElementById('output').textContent =
+                    'HTTP ' + response.status + '\n' + text;
+            } catch (err) {
+                document.getElementById('output').textContent = 'ERROR: ' + err.message;
+            }
+        });
+    </script>
+</body>
+
+</html>

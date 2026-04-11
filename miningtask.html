@@ -25,7 +25,8 @@ Edit Notes (2026-03-24):
 - Questionnaire items are now optional with alert for incomplete items.
 - Saving triple tested on browswers
 - Added strategy question at the end of the experiment
-- Saving in blocks
+- Saving main task in blocks
+- Saving Questionnaire in blocks
 -->
 
 <head>
@@ -465,8 +466,11 @@ Edit Notes (2026-03-24):
 
             // ======== Chunked saving helpers ========
 
-                // Tracks how many jsPsych rows have already been saved
+                // Tracks how many jsPsych rows have already been saved in the main task
                 let lastSavedRowIndex = 0;
+
+                // Tracks the chunks for the questionnaires
+                let questionnaireChunkCounter = 0;
 
                 // Visible debug log
                 function logChunkSave(label, rows) {
@@ -547,6 +551,13 @@ Edit Notes (2026-03-24):
                             throw err;
                         });
                 }
+
+                // Saves Questionnaires into chunks
+                function saveQuestionnaireChunk(chunkLabelBase, timeoutMs = 12000) {
+                        questionnaireChunkCounter += 1;
+                        const chunkLabel = `${chunkLabelBase}_${questionnaireChunkCounter}`;
+                        return saveUnsavedRowsChunk('questionnaire_chunk', chunkLabel, timeoutMs);
+                    }
 
 
             // Starting Parameters
@@ -2022,10 +2033,47 @@ ${digData.correct
         }
 
 
-        // ---- Add questionnaires to the timeline ----
+        // ---- Add questionnaires to the timeline, allow chunks to be saved at the end ----
         const randomizedSets = jsPsych.randomization.repeat(Q_SETS, 1); // shuffle the 4 sets
-        randomizedSets.forEach(set => timeline.push(makeSurveyBlock(set)));
-        timeline.push(makeSurveyBlock(ALWAYS_LAST)); // fixed last
+
+            randomizedSets.forEach(set => {
+                const surveyBlock = makeSurveyBlock(set);
+
+                const oldOnFinish = surveyBlock.on_finish;
+                surveyBlock.on_finish = function (data) {
+                    if (typeof oldOnFinish === 'function') {
+                        oldOnFinish(data);
+                    }
+
+                    saveQuestionnaireChunk(`questionnaire_${set.key}`)
+                        .then(() => {
+                            console.log(`[Chunk save] questionnaire_${set.key} saved`);
+                        })
+                        .catch((err) => {
+                            console.error(`[Chunk save] questionnaire_${set.key} failed:`, err);
+                        });
+                };
+
+                timeline.push(surveyBlock);
+            });
+
+            const alwaysLastBlock = makeSurveyBlock(ALWAYS_LAST);
+            const oldAlwaysLastOnFinish = alwaysLastBlock.on_finish;
+            alwaysLastBlock.on_finish = function (data) {
+                if (typeof oldAlwaysLastOnFinish === 'function') {
+                    oldAlwaysLastOnFinish(data);
+                }
+
+                saveQuestionnaireChunk(`questionnaire_${ALWAYS_LAST.key}`)
+                    .then(() => {
+                        console.log(`[Chunk save] questionnaire_${ALWAYS_LAST.key} saved`);
+                    })
+                    .catch((err) => {
+                        console.error(`[Chunk save] questionnaire_${ALWAYS_LAST.key} failed:`, err);
+                    });
+            };
+
+            timeline.push(alwaysLastBlock); // fixed last
 
         // ---- Demographics ----
         const DEMOGRAPHICS_SET = {
@@ -2110,8 +2158,25 @@ ${digData.correct
             ]
         };
 
-        // Add Demographics page to experiment
-        timeline.push(makeSurveyBlock(DEMOGRAPHICS_SET));
+        // Add Demographics page to experiment, save as a chunk at the end
+        const demographicsBlock = makeSurveyBlock(DEMOGRAPHICS_SET);
+            const oldDemographicsOnFinish = demographicsBlock.on_finish;
+
+            demographicsBlock.on_finish = function (data) {
+                if (typeof oldDemographicsOnFinish === 'function') {
+                    oldDemographicsOnFinish(data);
+                }
+
+                saveQuestionnaireChunk('demographics')
+                    .then(() => {
+                        console.log('[Chunk save] demographics saved');
+                    })
+                    .catch((err) => {
+                        console.error('[Chunk save] demographics failed:', err);
+                    });
+            };
+
+            timeline.push(demographicsBlock);
 
 
 
@@ -2145,38 +2210,33 @@ ${digData.correct
                 display_element: document.getElementById('jspsych-target'),
                 on_finish: function () {
 
+                showEndScreen(`
+        <div class="hud" style="max-width:800px;margin:40px auto;">
+          <div class="hud-card">
+            <h2 style="margin-top:0;">Finished</h2>
+            <p style="opacity:.85;">Redirecting you back to Prolific…</p>
+          </div>
+        </div>
+    `);
 
-                    showEndScreen(`
-            <div class="hud" style="max-width:800px;margin:40px auto;">
-              <div class="hud-card">
-                <h2 style="margin-top:0;">Saving questionnaires and final data…</h2>
-                <p>Please do not close this tab.</p>
-                <p style="opacity:.85;">You will be redirected back to Prolific automatically.</p>
-              </div>
-            </div>
-        `);
-
-                    saveUnsavedRowsChunk('questionnaires_final', 'questionnaires_and_demographics')
-                        .catch(() => null)
-                        .finally(() => {
-                            setTimeout(() => {
-                                if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
-                                    window.location.href = PROLIFIC_COMPLETION_URL;
-                                } else {
-                                    showEndScreen(`
-                            <div class="hud" style="max-width:800px;margin:40px auto;">
-                              <div class="hud-card">
-                                <h2 style="margin-top:0;">Finished</h2>
-                                <p>If you are not redirected automatically, please copy this completion code into Prolific:</p>
-                                <p style="font-size:1.4rem;"><strong>C1415QQK</strong></p>
-                              </div>
-                            </div>
-                        `);
-                                }
-                            }, 1500);
-                        });
-                } // end on_finish
-            }); // end jsPsych.init
+                setTimeout(() => {
+                    if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
+                        window.location.href = PROLIFIC_COMPLETION_URL;
+                    } else {
+                        showEndScreen(`
+                <div class="hud" style="max-width:800px;margin:40px auto;">
+                  <div class="hud-card">
+                    <h2 style="margin-top:0;">Finished</h2>
+                    <p>If you are not redirected automatically, please copy this completion code into Prolific:</p>
+                    <p style="font-size:1.4rem;"><strong>C1415QQK</strong></p>
+                  </div>
+                </div>
+            `);
+                    }
+                }, 1500);
+            }
+            } // end on_finish
+            ); // end jsPsych.init
                     </script>
     </body>
     
