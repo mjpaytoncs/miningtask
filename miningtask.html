@@ -10,7 +10,7 @@ P      A   A    Y      TT    OOOO   N   N
 Author: Michael Payton
 Project: Rumination
 
-Edit Notes (2026-03-24):
+Edit Notes (2026-04-08):
 - Implemented Versioning constant and per-row logging.
 - Implemented Participant metadata (ID/session/timestamp) captured via prompts and added to all rows.
 - Implemented File naming to include participant ID and ISO timestamp.
@@ -27,6 +27,7 @@ Edit Notes (2026-03-24):
 - Added strategy question at the end of the experiment
 - Saving main task in blocks
 - Saving Questionnaire in blocks
+- Issue with saving observed during pilot, switching to saving json on server
 -->
 
 <head>
@@ -430,8 +431,8 @@ Edit Notes (2026-03-24):
             };
 
 
-        // ======== Google Apps Script web app URL endpoint for saving ========
-        const SAVE_URL = 'https://script.google.com/macros/s/AKfycbz9GoKyRM6eojhuKEbxt3SAyodGB4muLMBcfxwalcq08wlpdNLC-7Eub-S-nTBnHTHVWw/exec';   // Script endpoint here: e.g., https://script.google.com/macros/s/AKfycb.../exec
+        // ======== Local server save endpoint on Alab Server ========
+        const SAVE_URL = 'save_data.php';
 
 
         // ========  Prolific completion URL ======== 
@@ -450,17 +451,16 @@ Edit Notes (2026-03-24):
             }
 
 
-        function postJsonTextPlainWithTimeout(url, payloadObj, timeoutMs) {
-                // text/plain avoids CORS 
+        function postJsonWithTimeout(url, payloadObj, timeoutMs) {
                 const controller = new AbortController();
                 const t = setTimeout(() => controller.abort(), timeoutMs);
 
                 return fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payloadObj),
                     signal: controller.signal,
-                    keepalive: true
+                    keepalive: false
                 }).finally(() => clearTimeout(t));
             }
 
@@ -528,7 +528,7 @@ Edit Notes (2026-03-24):
                     const payloadString = JSON.stringify(payload);
                     console.log(`[Chunk save] ${chunkLabel} payload bytes:`, payloadString.length);
 
-                    return postJsonTextPlainWithTimeout(SAVE_URL, payload, timeoutMs)
+                    return postJsonWithTimeout(SAVE_URL, payload, timeoutMs)
                         .then(async (r) => {
                             const text = await r.text();
                             console.log(`[Chunk save] ${chunkLabel} HTTP status:`, r.status, r.statusText);
@@ -2208,35 +2208,63 @@ ${digData.correct
         jsPsych.init({
                 timeline: timeline,
                 display_element: document.getElementById('jspsych-target'),
-                on_finish: function () {
+                on_finish: async function () {
 
-                showEndScreen(`
-        <div class="hud" style="max-width:800px;margin:40px auto;">
-          <div class="hud-card">
-            <h2 style="margin-top:0;">Finished</h2>
-            <p style="opacity:.85;">Redirecting you back to Prolific…</p>
-          </div>
-        </div>
-    `);
+                    showEndScreen(`
+            <div class="hud" style="max-width:800px;margin:40px auto;">
+              <div class="hud-card">
+                <h2 style="margin-top:0;">Finished</h2>
+                <p style="opacity:.85;">Saving your data to the server...</p>
+              </div>
+            </div>
+        `);
 
-                setTimeout(() => {
-                    if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
-                        window.location.href = PROLIFIC_COMPLETION_URL;
-                    } else {
+                    try {
+                        // Final flush of any rows not already saved in earlier chunks
+                        await saveUnsavedRowsChunk('final_chunk', 'final_chunk', 20000);
+                        console.log('[Final save] final_chunk saved');
+                    } catch (err) {
+                        console.error('[Final save] failed:', err);
+
                         showEndScreen(`
                 <div class="hud" style="max-width:800px;margin:40px auto;">
                   <div class="hud-card">
-                    <h2 style="margin-top:0;">Finished</h2>
-                    <p>If you are not redirected automatically, please copy this completion code into Prolific:</p>
-                    <p style="font-size:1.4rem;"><strong>C1415QQK</strong></p>
+                    <h2 style="margin-top:0;">Save problem</h2>
+                    <p>There was a problem saving your data to the server.</p>
+                    <p>Please do not close this page. Please contact the researcher and mention that the final save failed.</p>
                   </div>
                 </div>
             `);
+                        return;
                     }
-                }, 1500);
-            }
-            } // end on_finish
-            ); // end jsPsych.init
+
+                    showEndScreen(`
+            <div class="hud" style="max-width:800px;margin:40px auto;">
+              <div class="hud-card">
+                <h2 style="margin-top:0;">Finished</h2>
+                <p style="opacity:.85;">Your data were saved successfully.</p>
+                <p style="opacity:.85;">Redirecting you back to Prolific…</p>
+              </div>
+            </div>
+        `);
+
+                    setTimeout(() => {
+                        if (PROLIFIC_PID && hasRealCompletionUrl(PROLIFIC_COMPLETION_URL)) {
+                            window.location.href = PROLIFIC_COMPLETION_URL;
+                        } else {
+                            showEndScreen(`
+                    <div class="hud" style="max-width:800px;margin:40px auto;">
+                      <div class="hud-card">
+                        <h2 style="margin-top:0;">Finished</h2>
+                        <p>Your data were saved successfully.</p>
+                        <p>You may now close this window.</p>
+                      </div>
+                    </div>
+                `);
+                        }
+                    }, 1200);
+                }
+            }); // end jsPsych.init
                     </script>
     </body>
     
